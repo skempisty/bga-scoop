@@ -1,0 +1,20 @@
+# SFTP credentials — never commit
+.vscode/sftp.json
+
+# Dependencies / build
+node_modules/
+package-lock.json
+yarn.lock
+
+# OS / editor noise
+.DS_Store
+.idea/
+*.swp
+*~
+
+# Local tooling / caches
+.phpunit.cache/
+vendor/
+
+# Optional local-only notes (keep studio misc out of public repos if it grows)
+# misc/
