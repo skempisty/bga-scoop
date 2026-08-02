@@ -484,6 +484,7 @@ class Game extends \Bga\GameFramework\Table
     {
         $middle = $this->getMiddleCards();
         $middleIds = array_map(fn($c) => (int) $c['id'], $middle);
+        $pickedCount = count($middleIds);
 
         if ($middleIds !== []) {
             $this->cards->moveCards($middleIds, 'hand', $playerId);
@@ -491,13 +492,17 @@ class Game extends \Bga\GameFramework\Table
 
         $this->bga->notify->all('pickup', clienttranslate('${player_name} picks up the pile'), [
             'player_id' => $playerId,
-            'card_count' => count($middleIds),
+            'card_count' => $pickedCount,
         ]);
 
-        if ($middle !== []) {
+        if ($pickedCount > 0) {
+            $fullHand = Cards::sortByRank(array_map(
+                [$this, 'enrichCard'],
+                $this->cards->getCardsInLocation('hand', $playerId)
+            ));
             $this->bga->notify->player($playerId, 'handUpdated', clienttranslate('You picked up ${n} cards'), [
-                'cards' => array_map([$this, 'enrichCard'], Cards::sortByRank($middle)),
-                'n' => count($middle),
+                'cards' => $fullHand,
+                'n' => $pickedCount,
             ]);
         }
     }

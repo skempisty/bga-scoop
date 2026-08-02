@@ -7,7 +7,7 @@
 
 #scoop-table {
     position: relative;
-    min-height: 520px;
+    min-height: 640px;
     padding: 12px;
     background: #0d3b2e url('img/table_felt.png') center / cover no-repeat;
     border-radius: 8px;
@@ -20,15 +20,26 @@
     font-size: 18px;
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
+#scoop-arena {
+    position: relative;
+    width: 100%;
+    height: 460px;
+    margin: 0 auto 12px;
+}
+
 #scoop-middle-zone {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 5;
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: 8px auto 20px;
 }
 
 #scoop-middle-label,
@@ -42,11 +53,8 @@
 
 #scoop-middle-pile {
     position: relative;
-    min-height: 130px;
-    min-width: 90px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    height: 124px;
+    min-width: 88px;
 }
 
 .scoop-empty-pile {
@@ -61,36 +69,26 @@
     color: rgba(245, 240, 230, 0.6);
 }
 
-.scoop-pile-count {
+.scoop-pile-card {
     position: absolute;
-    right: -8px;
-    bottom: -8px;
-    background: #c9a227;
-    color: #1a1a1a;
-    font-weight: bold;
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 13px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    top: 0;
+    left: 0;
 }
 
-#scoop-players {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    justify-content: center;
-    margin-bottom: 16px;
+.scoop-pile-card:not(:last-child) .scoop-card-center,
+.scoop-pile-card:not(:last-child) .scoop-card-br {
+    display: none;
 }
 
 .scoop-player-zone {
-    background: rgba(0, 0, 0, 0.25);
+    position: absolute;
+    background: rgba(0, 0, 0, 0.35);
     border-radius: 8px;
-    padding: 10px 12px;
-    min-width: 220px;
+    padding: 8px 10px;
+    min-width: 200px;
+    max-width: 280px;
+    transform: translate(-50%, -50%);
+    z-index: 2;
 }
 
 .scoop-player-me {
@@ -99,24 +97,28 @@
 
 .scoop-player-name {
     font-weight: bold;
-    font-size: 15px;
-    margin-bottom: 4px;
+    font-size: 14px;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .scoop-player-meta {
-    font-size: 12px;
+    font-size: 11px;
     opacity: 0.8;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .scoop-slots {
     display: flex;
-    gap: 6px;
+    gap: 4px;
+    justify-content: center;
 }
 
 .scoop-slot {
-    width: 64px;
-    height: 90px;
+    width: 56px;
+    height: 78px;
 }
 
 .scoop-slot-empty {
@@ -125,8 +127,8 @@
 }
 
 .scoop-card {
-    width: 64px;
-    height: 90px;
+    width: 56px;
+    height: 78px;
     border-radius: 6px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
     position: relative;
@@ -140,29 +142,47 @@
 }
 
 .scoop-card-back {
-    background: #1a4d3e url('img/card_back.png') center / cover no-repeat;
+    background:
+        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18), transparent 45%),
+        linear-gradient(145deg, #3b82f6 0%, #1d4ed8 45%, #1e3a8a 100%);
+    border: 2px solid #93c5fd;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 0 0 3px rgba(30, 58, 138, 0.55);
+}
+
+.scoop-card-back::after {
+    content: 'SCOOP';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 0.08em;
+    color: rgba(219, 234, 254, 0.95);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
 .scoop-card-corner {
     position: absolute;
-    font-size: 11px;
+    font-size: 10px;
     line-height: 1.1;
     font-weight: bold;
 }
 
 .scoop-card-corner span {
     display: block;
-    font-size: 12px;
+    font-size: 11px;
 }
 
 .scoop-card-tl {
-    top: 4px;
-    left: 5px;
+    top: 3px;
+    left: 4px;
 }
 
 .scoop-card-br {
-    bottom: 4px;
-    right: 5px;
+    bottom: 3px;
+    right: 4px;
     transform: rotate(180deg);
 }
 
@@ -171,7 +191,7 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 22px;
+    font-size: 18px;
     font-weight: bold;
     text-align: center;
     line-height: 1;
@@ -179,16 +199,20 @@
 
 .scoop-card-center span {
     display: block;
-    font-size: 20px;
+    font-size: 16px;
 }
 
 #scoop-middle-pile .scoop-card {
-    width: 88px;
-    height: 124px;
+    width: 72px;
+    height: 100px;
 }
 
 #scoop-middle-pile .scoop-card-center {
-    font-size: 28px;
+    font-size: 22px;
+}
+
+#scoop-middle-pile .scoop-card-corner {
+    font-size: 12px;
 }
 
 .scoop-card[data-location="hand"],
@@ -212,59 +236,7 @@
 }
 
 #scoop-hand-zone {
-    margin-top: 8px;
-}
-
-#scoop-action-bar {
-    margin: 12px 0;
-    padding: 10px 12px;
-    background: rgba(0, 0, 0, 0.35);
-    border-radius: 8px;
-    border: 1px solid rgba(201, 162, 39, 0.45);
-}
-
-.scoop-action-bar-hidden {
-    display: none;
-}
-
-#scoop-action-hint {
-    font-size: 13px;
-    margin-bottom: 8px;
-    opacity: 0.9;
-}
-
-.scoop-action-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.scoop-btn {
-    font-family: inherit;
-    font-size: 14px;
-    padding: 8px 14px;
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    background: rgba(255, 255, 255, 0.12);
-    color: #f5f0e6;
-    cursor: pointer;
-}
-
-.scoop-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.scoop-btn-primary {
-    background: #c9a227;
-    color: #1a1a1a;
-    border-color: #a8841a;
-    font-weight: bold;
-}
-
-.scoop-btn-alert {
-    background: #8b3a2a;
-    border-color: #6e2e22;
+    margin-top: 4px;
 }
 
 #scoop-hand {
@@ -275,6 +247,7 @@
     padding: 8px;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 8px;
+    justify-content: flex-end;
 }
 
 .scoop-panel-score {
@@ -307,17 +280,24 @@
 }
 
 @media (max-width: 740px) {
-  .scoop-player-zone {
-    min-width: 100%;
-  }
+    #scoop-arena {
+        height: 520px;
+    }
 
-  .scoop-card {
-    width: 56px;
-    height: 78px;
-  }
+    .scoop-player-zone {
+        min-width: 160px;
+        max-width: 200px;
+        padding: 6px;
+    }
 
-  #scoop-middle-pile .scoop-card {
-    width: 72px;
-    height: 100px;
-  }
+    .scoop-card,
+    .scoop-slot {
+        width: 48px;
+        height: 68px;
+    }
+
+    #scoop-middle-pile .scoop-card {
+        width: 60px;
+        height: 84px;
+    }
 }

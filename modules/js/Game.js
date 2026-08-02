@@ -22,12 +22,7 @@ class PlayerTurn {
         this.args = args;
         this.game.renderBoard();
         this.game.updateSelectionUi();
-        this.game.setActionBarVisible(isCurrentPlayerActive);
         this.updateActionButtons(args);
-
-        const roundLabel = _('Round ${round} of ${total}')
-            .replace('${round}', args.round)
-            .replace('${total}', args.numRounds);
 
         if (args.inFinalTurns) {
             this.bga.statusBar.setTitle(isCurrentPlayerActive
@@ -53,46 +48,17 @@ class PlayerTurn {
             });
             this.bga.statusBar.addActionButton(_('Clear'), () => this.clearSelection(), { color: 'secondary' });
         }
-
-        const hint = document.getElementById('scoop-action-hint');
-        if (hint) {
-            hint.textContent = isCurrentPlayerActive
-                ? _('Select same-rank cards, then Play. Or click an uncovered face-down card.')
-                : (roundLabel + ' — ' + _('Waiting for opponent'));
-        }
     }
 
     onLeavingState() {
         this.isActive = false;
         this.selectedCardIds.clear();
         this.selectedBlindSlot = null;
-        this.game.setActionBarVisible(false);
         this.bga.statusBar.removeActionButtons();
     }
 
     updateActionButtons(args) {
-        const hasSelection = this.selectedCardIds.size > 0;
-        const canPickUp = !!(args && args.canPickUp);
         const canBlind = this.selectedBlindSlot !== null;
-
-        const playBtn = document.getElementById('scoop-btn-play');
-        const pickupBtn = document.getElementById('scoop-btn-pickup');
-        const blindBtn = document.getElementById('scoop-btn-blind-local');
-        const clearBtn = document.getElementById('scoop-btn-clear');
-
-        if (playBtn) {
-            playBtn.disabled = !this.isActive || !hasSelection || canBlind;
-        }
-        if (pickupBtn) {
-            pickupBtn.disabled = !this.isActive || !canPickUp;
-        }
-        if (blindBtn) {
-            blindBtn.disabled = !this.isActive || !canBlind;
-        }
-        if (clearBtn) {
-            clearBtn.disabled = !this.isActive;
-        }
-
         const statusBlind = document.getElementById('scoop-btn-blind');
         if (statusBlind) {
             statusBlind.disabled = !canBlind;
@@ -189,9 +155,10 @@ class PlayerTurn {
         if (this.selectedBlindSlot === null) {
             return;
         }
+        // Always send the key — empty arrays can be dropped by the request layer
         this.bga.actions.performAction('actPlayBlind', {
             slot: this.selectedBlindSlot,
-            extra_card_ids: [...this.selectedCardIds],
+            extra_card_ids: this.selectedCardIds.size > 0 ? [...this.selectedCardIds] : [],
         });
     }
 }
@@ -219,18 +186,10 @@ export class Game {
         this.bga.gameArea.getElement().insertAdjacentHTML('beforeend', `
             <div id="scoop-table">
                 <div id="scoop-round-banner"></div>
-                <div id="scoop-middle-zone">
-                    <div id="scoop-middle-label">${_('Pile')}</div>
-                    <div id="scoop-middle-pile"></div>
-                </div>
-                <div id="scoop-players"></div>
-                <div id="scoop-action-bar" class="scoop-action-bar-hidden">
-                    <div id="scoop-action-hint"></div>
-                    <div class="scoop-action-buttons">
-                        <button type="button" id="scoop-btn-play" class="scoop-btn scoop-btn-primary">${_('Play selected')}</button>
-                        <button type="button" id="scoop-btn-pickup" class="scoop-btn">${_('Pick up pile')}</button>
-                        <button type="button" id="scoop-btn-blind-local" class="scoop-btn scoop-btn-alert">${_('Play face-down')}</button>
-                        <button type="button" id="scoop-btn-clear" class="scoop-btn">${_('Clear')}</button>
+                <div id="scoop-arena">
+                    <div id="scoop-middle-zone">
+                        <div id="scoop-middle-label">${_('Pile')}</div>
+                        <div id="scoop-middle-pile"></div>
                     </div>
                 </div>
                 <div id="scoop-hand-zone">
@@ -240,28 +199,14 @@ export class Game {
             </div>
         `);
 
-        document.getElementById('scoop-btn-play').addEventListener('click', () => this.playerTurn.onPlaySelected());
-        document.getElementById('scoop-btn-pickup').addEventListener('click', () => this.playerTurn.onPickUp());
-        document.getElementById('scoop-btn-blind-local').addEventListener('click', () => this.playerTurn.onPlayBlind());
-        document.getElementById('scoop-btn-clear').addEventListener('click', () => this.playerTurn.clearSelection());
-
         Object.values(gamedatas.players).forEach(player => {
             this.bga.playerPanels.getElement(player.id).insertAdjacentHTML('beforeend', `
                 <div class="scoop-panel-score">${_('Score')}: <span id="scoop-score-${player.id}">${player.score}</span></div>
             `);
         });
 
-        this.setActionBarVisible(false);
         this.renderBoard();
         this.setupNotifications();
-    }
-
-    setActionBarVisible(visible) {
-        const bar = document.getElementById('scoop-action-bar');
-        if (!bar) {
-            return;
-        }
-        bar.classList.toggle('scoop-action-bar-hidden', !visible);
     }
 
     cloneBoardFromGamedatas(gamedatas) {
@@ -284,11 +229,12 @@ export class Game {
     }
 
     sortHand(cards) {
+        // Weakest on the left, strongest (10s) on the right
         const strength = (type) => {
             const idx = RANK_ORDER.indexOf(type);
             return idx === -1 ? 0 : RANK_ORDER.length - idx;
         };
-        return [...cards].sort((a, b) => strength(b.type) - strength(a.type) || a.id - b.id);
+        return [...cards].sort((a, b) => strength(a.type) - strength(b.type) || a.id - b.id);
     }
 
     findCard(cardId) {
@@ -355,40 +301,54 @@ export class Game {
         pile.innerHTML = '';
 
         if (this.board.middle.length === 0) {
+            pile.style.width = '72px';
             pile.innerHTML = `<div class="scoop-empty-pile">${_('Empty')}</div>`;
             return;
         }
 
-        const top = this.board.middle[this.board.middle.length - 1];
-        pile.appendChild(this.createCardElement(top, 'middle'));
-        if (this.board.middle.length > 1) {
-            const count = document.createElement('div');
-            count.className = 'scoop-pile-count';
-            count.textContent = String(this.board.middle.length);
-            pile.appendChild(count);
+        const peek = 20;
+        const cardWidth = 72;
+        this.board.middle.forEach((card, index) => {
+            const el = this.createCardElement(card, 'middle');
+            el.classList.add('scoop-pile-card');
+            el.style.left = `${index * peek}px`;
+            el.style.zIndex = String(index + 1);
+            pile.appendChild(el);
+        });
+        pile.style.width = `${cardWidth + (this.board.middle.length - 1) * peek}px`;
+    }
+
+    orderedPlayerIdsAroundTable() {
+        const me = Number(this.getCurrentPlayerId());
+        const ids = Object.keys(this.board.tableSlots).map(Number);
+        if (!ids.includes(me)) {
+            return ids.sort((a, b) => a - b);
         }
+
+        // Seat order by player id, rotated so current viewer is first (bottom)
+        const sorted = [...ids].sort((a, b) => a - b);
+        const myIndex = sorted.indexOf(me);
+        return [...sorted.slice(myIndex), ...sorted.slice(0, myIndex)];
     }
 
     renderPlayers() {
-        const container = document.getElementById('scoop-players');
-        if (!container) {
+        const arena = document.getElementById('scoop-arena');
+        if (!arena) {
             return;
         }
-        container.innerHTML = '';
+
+        arena.querySelectorAll('.scoop-player-zone').forEach(el => el.remove());
 
         const me = Number(this.getCurrentPlayerId());
-        const playerIds = Object.keys(this.board.tableSlots).map(Number);
-        playerIds.sort((a, b) => {
-            if (a === me) {
-                return -1;
-            }
-            if (b === me) {
-                return 1;
-            }
-            return a - b;
-        });
+        const playerIds = this.orderedPlayerIdsAroundTable();
+        const count = playerIds.length;
+        const rect = arena.getBoundingClientRect();
+        const cx = rect.width / 2;
+        const cy = rect.height / 2;
+        const radiusX = Math.min(rect.width * 0.38, 280);
+        const radiusY = Math.min(rect.height * 0.36, 180);
 
-        playerIds.forEach(playerId => {
+        playerIds.forEach((playerId, index) => {
             const player = this.board.players[playerId] || this.board.players[String(playerId)];
             if (!player) {
                 return;
@@ -398,9 +358,16 @@ export class Game {
             const handCount = Number(this.board.handCounts[playerId] ?? this.board.handCounts[String(playerId)] ?? 0);
             const tableCount = slots.filter(s => s.hasDown || s.up).length;
 
+            // i=0 at bottom; then clockwise
+            const angle = (2 * Math.PI * index) / count;
+            const x = cx + radiusX * Math.sin(angle);
+            const y = cy + radiusY * Math.cos(angle);
+
             const zone = document.createElement('div');
             zone.className = 'scoop-player-zone' + (isMe ? ' scoop-player-me' : '');
             zone.id = `scoop-player-${playerId}`;
+            zone.style.left = `${x}px`;
+            zone.style.top = `${y}px`;
 
             zone.innerHTML = `
                 <div class="scoop-player-name" style="color:#${player.color}">${player.name}${isMe ? ' (' + _('you') + ')' : ''}</div>
@@ -434,7 +401,7 @@ export class Game {
                 slotsEl.appendChild(slotEl);
             });
 
-            container.appendChild(zone);
+            arena.appendChild(zone);
         });
     }
 

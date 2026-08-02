@@ -85,9 +85,9 @@ class PlayerTurn extends GameState
     #[PossibleAction]
     public function actPlayBlind(
         int $slot,
-        #[IntArrayParam(min: 0, max: 3)] array $extra_card_ids,
-        int $activePlayerId,
-        array $args,
+        #[IntArrayParam(min: 0, max: 3)] array $extra_card_ids = [],
+        int $activePlayerId = 0,
+        array $args = [],
     ) {
         $blindSlots = $this->game->getBlindableSlots($activePlayerId);
         if (!in_array($slot, $blindSlots, true)) {
