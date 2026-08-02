@@ -9,8 +9,7 @@ use Bga\Games\Scoop\Game;
 
 class NextPlayer extends \Bga\GameFramework\States\GameState
 {
-
-    function __construct(
+    public function __construct(
         protected Game $game,
     ) {
         parent::__construct($game,
@@ -20,24 +19,22 @@ class NextPlayer extends \Bga\GameFramework\States\GameState
         );
     }
 
-    /**
-     * Game state action, example content.
-     *
-     * The onEnteringState method of state `nextPlayer` is called everytime the current game state is set to `nextPlayer`.
-     */
-    function onEnteringState(int $activePlayerId) {
-
-        // Give some extra time to the active player when he completed an action
+    public function onEnteringState(int $activePlayerId): string
+    {
         $this->game->giveExtraTime($activePlayerId);
-        
+
+        if ((int) $this->game->getGameStateValue('in_final_turns') === 1) {
+            $wentOutId = (int) $this->game->getGameStateValue('went_out_player_id');
+            $nextTable = $this->game->getNextPlayerTable();
+            $nextPlayerId = $nextTable[$activePlayerId];
+
+            if ($nextPlayerId === $wentOutId) {
+                return EndRound::class;
+            }
+        }
+
         $this->game->activeNextPlayer();
 
-        // Go to another gamestate
-        $gameEnd = false; // Here, we would detect if the game is over to make the appropriate transition
-        if ($gameEnd) {
-            return EndScore::class;
-        } else {
-            return PlayerTurn::class;
-        }
+        return PlayerTurn::class;
     }
 }

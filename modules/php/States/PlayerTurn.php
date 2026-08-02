@@ -8,11 +8,12 @@ use Bga\GameFramework\StateType;
 use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
 use Bga\GameFramework\UserException;
+use Bga\Games\Scoop\Cards;
 use Bga\Games\Scoop\Game;
 
 class PlayerTurn extends GameState
 {
-    function __construct(
+    public function __construct(
         protected Game $game,
     ) {
         parent::__construct($game,
@@ -21,97 +22,145 @@ class PlayerTurn extends GameState
         );
     }
 
-    /**
-     * Game state arguments, example content.
-     *
-     * This method returns some additional information that is very specific to the `PlayerTurn` game state.
-     */
     public function getArgs(): array
     {
-        // Get some values from the current game situation from the database.
+        $playerId = (int) $this->game->getActivePlayerId();
+        $playable = $this->game->getPlayableCardsForPlayer($playerId);
+        $middle = $this->game->getMiddleCards();
+        $topGroup = Cards::getTopGroup($middle);
 
         return [
-            "playableCardsIds" => [1, 2],
+            'playableCardIds' => array_keys($playable),
+            'playableCards' => array_values($playable),
+            'blindSlots' => $this->game->getBlindableSlots($playerId),
+            'canPickUp' => count($middle) > 0,
+            'middleCount' => count($middle),
+            'middleTopRank' => $topGroup['rank'],
+            'middleTopCount' => $topGroup['count'],
+            'inFinalTurns' => (int) $this->game->getGameStateValue('in_final_turns') === 1,
+            'round' => (int) $this->game->getGameStateValue('round_number'),
+            'numRounds' => count($this->game->getPlayers()),
         ];
-    }    
+    }
 
     /**
-     * Player action, example content.
-     *
-     * In this scenario, each time a player plays a card, this method will be called. This method is called directly
-     * by the action trigger on the front side with `bgaPerformAction`.
-     *
-     * @throws UserException
+     * @param int[] $card_ids
      */
     #[PossibleAction]
-    public function actPlayCard(int $card_id, int $activePlayerId, array $args)
+    public function actPlayCards(array $card_ids, int $activePlayerId, array $args)
     {
-        // check input values
-        $playableCardsIds = $args['playableCardsIds'];
-        if (!in_array($card_id, $playableCardsIds)) {
-            throw new UserException('Invalid card choice');
+        $cards = $this->game->validatePlayCards($activePlayerId, $card_ids);
+        $topGroupBefore = Cards::getTopGroup($this->game->getMiddleCards());
+        $this->game->moveCardsToMiddle($cards);
+
+        $result = $this->game->finalizePlay($activePlayerId, $cards, $topGroupBefore);
+
+        if ($result['stay']) {
+            return self::class;
         }
 
-        // Add your game logic to play a card here.
-        $card_name = Game::$CARD_TYPES[$card_id]['card_name'];
-
-        // Notify all players about the card played.
-        $this->bga->notify->all("cardPlayed", clienttranslate('${player_name} plays ${card_name}'), [
-            "player_id" => $activePlayerId,
-            "player_name" => $this->game->getPlayerNameById($activePlayerId), // remove this line if you uncomment notification decorator
-            "card_name" => $card_name, // remove this line if you uncomment notification decorator
-            "card_id" => $card_id,
-            "i18n" => ['card_name'], // remove this line if you uncomment notification decorator
-        ]);
-
-        // in this example, the player gains 1 points each time he plays a card
-        $this->bga->playerScore->inc($activePlayerId, 1);
-
-        // at the end of the action, move to the next state
         return NextPlayer::class;
     }
 
+    #[PossibleAction]
+    public function actPickUp(int $activePlayerId)
+    {
+        $middle = $this->game->getMiddleCards();
+        if ($middle === []) {
+            throw new UserException(clienttranslate('There is nothing to pick up'));
+        }
+
+        $this->game->pickUpMiddleToPlayer($activePlayerId);
+
+        return self::class;
+    }
+
     /**
-     * Player action, example content.
-     *
-     * In this scenario, each time a player pass, this method will be called. This method is called directly
-     * by the action trigger on the front side with `bgaPerformAction`.
+     * @param int[] $extra_card_ids
      */
     #[PossibleAction]
-    public function actPass(int $activePlayerId)
+    public function actPlayBlind(int $slot, array $extra_card_ids, int $activePlayerId, array $args)
     {
-        // Notify all players about the choice to pass.
-        $this->notify->all("pass", clienttranslate('${player_name} passes'), [
-            "player_id" => $activePlayerId,
-            "player_name" => $this->game->getPlayerNameById($activePlayerId), // remove this line if you uncomment notification decorator
+        $blindSlots = $this->game->getBlindableSlots($activePlayerId);
+        if (!in_array($slot, $blindSlots, true)) {
+            throw new UserException(clienttranslate('You cannot play from that face-down slot'));
+        }
+
+        $downCard = $this->game->getDownCard($activePlayerId, $slot);
+        if ($downCard === null) {
+            throw new UserException(clienttranslate('No face-down card in that slot'));
+        }
+
+        $revealedRank = Cards::cardRank($downCard);
+        $extra_card_ids = array_values(array_unique(array_map('intval', $extra_card_ids)));
+
+        $extraCards = [];
+        foreach ($extra_card_ids as $cardId) {
+            $card = $this->game->getCardFromPlayerSources($activePlayerId, $cardId);
+            if ($card === null) {
+                throw new UserException(clienttranslate('Invalid extra card selection'));
+            }
+            if (Cards::cardRank($card) !== $revealedRank) {
+                throw new UserException(clienttranslate('Extra cards must match the revealed rank'));
+            }
+            $extraCards[] = $card;
+        }
+
+        $allCards = array_merge([$downCard], $extraCards);
+        $middle = $this->game->getMiddleCards();
+        $topGroupBefore = Cards::getTopGroup($middle);
+        $middleEmpty = $middle === [];
+        $illegalBlind = !Cards::canPlayRankOnMiddle($revealedRank, $topGroupBefore['rank'], $middleEmpty);
+
+        $effectiveTopCount = ($topGroupBefore['rank'] === $revealedRank) ? $topGroupBefore['count'] : 0;
+        $availableSameRank = 1 + $this->game->countAvailableCardsOfRank($activePlayerId, $revealedRank, true);
+        $maxPlay = Cards::maxPlayCountWithoutOverComplete($effectiveTopCount, $availableSameRank);
+        if (count($allCards) > $maxPlay) {
+            throw new UserException(clienttranslate('You cannot play more than four of the same rank on the pile'));
+        }
+
+        $this->game->cards->moveCard((int) $downCard['id'], 'middle', 0);
+        foreach ($extraCards as $card) {
+            $this->game->cards->insertCardOnExtremePosition((int) $card['id'], 'middle', true);
+        }
+
+        $this->bga->notify->all('blindPlayed', clienttranslate('${player_name} plays a face-down card: ${cards_label}'), [
+            'player_id' => $activePlayerId,
+            'slot' => $slot,
+            'cards' => array_map([$this->game, 'enrichCard'], $allCards),
+            'cards_label' => implode(', ', array_map(fn($c) => Cards::formatCardLabel($c), $allCards)),
+            'illegal' => $illegalBlind,
         ]);
 
-        // in this example, the player gains 1 energy each time he passes
-        $this->game->playerEnergy->inc($activePlayerId, 1);
+        $result = $this->game->finalizePlay(
+            $activePlayerId,
+            $allCards,
+            $topGroupBefore,
+            notifyPlay: false,
+            fromBlindFailure: $illegalBlind,
+        );
 
-        // at the end of the action, move to the next state
+        if ($result['stay']) {
+            return self::class;
+        }
+
         return NextPlayer::class;
     }
 
-    /**
-     * This method is called each time it is the turn of a player who has quit the game (= "zombie" player).
-     * You can do whatever you want in order to make sure the turn of this player ends appropriately
-     * (ex: play a random card).
-     * 
-     * See more about Zombie Mode: https://en.doc.boardgamearena.com/Zombie_Mode
-     *
-     * Important: your zombie code will be called when the player leaves the game. This action is triggered
-     * from the main site and propagated to the gameserver from a server, not from a browser.
-     * As a consequence, there is no current player associated to this action. In your zombieTurn function,
-     * you must _never_ use `getCurrentPlayerId()` or `getCurrentPlayerName()`, 
-     * but use the $playerId passed in parameter and $this->game->getPlayerNameById($playerId) instead.
-     */
-    function zombie(int $playerId) {
-        // Example of zombie level 0: return NextPlayer::class; or $this->actPass($playerId);
-
-        // Example of zombie level 1:
+    public function zombie(int $playerId)
+    {
         $args = $this->getArgs();
-        $zombieChoice = $this->getRandomZombieChoice($args['playableCardsIds']); // random choice over possible moves
-        return $this->actPlayCard($zombieChoice, $playerId, $args); // this function will return the transition to the next state
+
+        if ($args['canPickUp']) {
+            return $this->actPickUp($playerId);
+        }
+
+        if ($args['playableCardIds'] !== []) {
+            $cardId = $args['playableCardIds'][0];
+
+            return $this->actPlayCards([$cardId], $playerId, $args);
+        }
+
+        return NextPlayer::class;
     }
 }

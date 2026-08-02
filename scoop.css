@@ -1,65 +1,271 @@
-/**
- *------
- * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * Scoop implementation : © <Your name here> <Your email address here>
- *
- * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
- * See http://en.boardgamearena.com/#!doc/Studio for more information.
- * -----
- */
+/********* Scoop game UI **********/
 
-/*
-    This is the CSS stylesheet of your game User Interface.
-    
-    Styles defined on this file will be applied to HTML elements you create (in Game.js).
-    
-    Usually, you are using CSS to:
-    
-    1°) define the overall layout of your game
-        (ex: place the board on the top left, place player's hand beside, place the deck on the right, ...).
+@font-face {
+    font-family: 'ScoopDisplay';
+    src: local('Georgia'), local('Times New Roman'), serif;
+}
 
-    2°) create your CSS-sprites:
-        All images of your games should be gathered into a small number of image files. Then, using
-        background-image and background-position CSS properties, you create HTML blocks that can 
-        display these images correctly (see example below).
-    
-    3°) ... anything else:
-        It is really easy to add and remove CSS classes dynamically from your Javascript with
-        dojo.addClass and dojo.removeClass. It is also easy to check if an element has a class
-        (dojo.hasClass) or to get all elements with a specific class (dojo.query). This is why,
-        very often, using CSS classes for the logic of your user interface allow you to do complex
-        thing easily.
-        
-        
-     Note: on the production platform, this file will be compressed and comments will be removed.
-           Consequently, don't hesitate to put as many comments as necessary.
-*/
+#scoop-table {
+    position: relative;
+    min-height: 520px;
+    padding: 12px;
+    background: #0d3b2e url('img/table_felt.png') center / cover no-repeat;
+    border-radius: 8px;
+    font-family: 'ScoopDisplay', Georgia, 'Times New Roman', serif;
+    color: #f5f0e6;
+}
 
+#scoop-round-banner {
+    text-align: center;
+    font-size: 18px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
 
-/* Note: you must not use any @import directive */
+#scoop-middle-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 8px auto 20px;
+}
 
+#scoop-middle-label,
+#scoop-hand-label {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+    margin-bottom: 6px;
+}
 
-/********* You can start writing your CSS below this line: **********/
+#scoop-middle-pile {
+    position: relative;
+    min-height: 130px;
+    min-width: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
+.scoop-empty-pile {
+    width: 88px;
+    height: 124px;
+    border: 2px dashed rgba(245, 240, 230, 0.35);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: rgba(245, 240, 230, 0.6);
+}
 
-/*
-    Example of CSS sprites (a black token and a white token, 20x20px each, embedded in the same "tokens.png" 40x20px image):
+.scoop-pile-count {
+    position: absolute;
+    right: -8px;
+    bottom: -8px;
+    background: #c9a227;
+    color: #1a1a1a;
+    font-weight: bold;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
 
-    .white_token {
-        background-image: url('img/tokens.png');
-        background-position: 0px 0px;
+#scoop-players {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.scoop-player-zone {
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+    padding: 10px 12px;
+    min-width: 220px;
+}
+
+.scoop-player-me {
+    border: 2px solid #c9a227;
+}
+
+.scoop-player-name {
+    font-weight: bold;
+    font-size: 15px;
+    margin-bottom: 4px;
+}
+
+.scoop-player-meta {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-bottom: 8px;
+}
+
+.scoop-slots {
+    display: flex;
+    gap: 6px;
+}
+
+.scoop-slot {
+    width: 64px;
+    height: 90px;
+}
+
+.scoop-slot-empty {
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+}
+
+.scoop-card {
+    width: 64px;
+    height: 90px;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    position: relative;
+    cursor: default;
+    user-select: none;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.scoop-card-face {
+    background: #faf6ee url('img/card_face.png') center / cover no-repeat;
+}
+
+.scoop-card-back {
+    background: #1a4d3e url('img/card_back.png') center / cover no-repeat;
+}
+
+.scoop-card-corner {
+    position: absolute;
+    font-size: 11px;
+    line-height: 1.1;
+    font-weight: bold;
+}
+
+.scoop-card-corner span {
+    display: block;
+    font-size: 12px;
+}
+
+.scoop-card-tl {
+    top: 4px;
+    left: 5px;
+}
+
+.scoop-card-br {
+    bottom: 4px;
+    right: 5px;
+    transform: rotate(180deg);
+}
+
+.scoop-card-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 22px;
+    font-weight: bold;
+    text-align: center;
+    line-height: 1;
+}
+
+.scoop-card-center span {
+    display: block;
+    font-size: 20px;
+}
+
+#scoop-middle-pile .scoop-card {
+    width: 88px;
+    height: 124px;
+}
+
+#scoop-middle-pile .scoop-card-center {
+    font-size: 28px;
+}
+
+.scoop-card[data-location="hand"],
+.scoop-card[data-location="table_up"] {
+    cursor: pointer;
+}
+
+.scoop-blind-target {
+    cursor: pointer;
+}
+
+.scoop-selected {
+    transform: translateY(-10px);
+    box-shadow: 0 8px 14px rgba(201, 162, 39, 0.55);
+    outline: 2px solid #c9a227;
+}
+
+.scoop-blind-selected {
+    outline: 3px solid #e8c547;
+    transform: translateY(-6px);
+}
+
+#scoop-hand-zone {
+    margin-top: 8px;
+}
+
+#scoop-hand {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 100px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 8px;
+}
+
+.scoop-panel-score {
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+.scoop-scoop-flash::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+    background: url('img/scoop_badge.png') center / 48px no-repeat;
+    animation: scoop-pop 0.6s ease-out forwards;
+    pointer-events: none;
+}
+
+@keyframes scoop-pop {
+    0% {
+        opacity: 0;
+        transform: scale(0.4);
     }
-    .black_token {
-        background-image: url('img/tokens.png');
-        background-position: -20px 0px;
+    40% {
+        opacity: 1;
+        transform: scale(1.1);
     }
-    .token {
-        width: 20px;
-        height: 20px;
-        background-repeat: none;
+    100% {
+        opacity: 0;
+        transform: scale(1.4);
     }
-*/
+}
 
+@media (max-width: 740px) {
+  .scoop-player-zone {
+    min-width: 100%;
+  }
 
+  .scoop-card {
+    width: 56px;
+    height: 78px;
+  }
 
-
+  #scoop-middle-pile .scoop-card {
+    width: 72px;
+    height: 100px;
+  }
+}
