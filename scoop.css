@@ -215,6 +215,58 @@
     margin-top: 8px;
 }
 
+#scoop-action-bar {
+    margin: 12px 0;
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.35);
+    border-radius: 8px;
+    border: 1px solid rgba(201, 162, 39, 0.45);
+}
+
+.scoop-action-bar-hidden {
+    display: none;
+}
+
+#scoop-action-hint {
+    font-size: 13px;
+    margin-bottom: 8px;
+    opacity: 0.9;
+}
+
+.scoop-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.scoop-btn {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.12);
+    color: #f5f0e6;
+    cursor: pointer;
+}
+
+.scoop-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.scoop-btn-primary {
+    background: #c9a227;
+    color: #1a1a1a;
+    border-color: #a8841a;
+    font-weight: bold;
+}
+
+.scoop-btn-alert {
+    background: #8b3a2a;
+    border-color: #6e2e22;
+}
+
 #scoop-hand {
     display: flex;
     flex-wrap: wrap;

@@ -234,7 +234,7 @@ class Game extends \Bga\GameFramework\Table
 
     public function setupPlayerTable(int $playerId): void
     {
-        $handCards = $this->cards->getCardsInLocation('hand', $playerId);
+        $handCards = array_values($this->cards->getCardsInLocation('hand', $playerId));
         $handIds = array_map(fn($c) => (int) $c['id'], $handCards);
 
         for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
@@ -244,7 +244,7 @@ class Game extends \Bga\GameFramework\Table
             $this->cards->moveCard($handIds[$slot], 'table_down', Cards::slotArg($playerId, $slot));
         }
 
-        $remaining = $this->cards->getCardsInLocation('hand', $playerId);
+        $remaining = array_values($this->cards->getCardsInLocation('hand', $playerId));
         $remainingIds = array_map(fn($c) => (int) $c['id'], $remaining);
 
         for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
@@ -297,7 +297,7 @@ class Game extends \Bga\GameFramework\Table
 
     public function getMiddleCards(): array
     {
-        return $this->cards->getCardsInLocation('middle', 0, 'card_id');
+        return array_values($this->cards->getCardsInLocation('middle', null, 'card_location_arg'));
     }
 
     public function getPlayerTableCards(int $playerId): array
@@ -358,8 +358,8 @@ class Game extends \Bga\GameFramework\Table
 
         for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
             $arg = Cards::slotArg($playerId, $slot);
-            $downCards = $this->cards->getCardsInLocation('table_down', $arg);
-            $upCards = $this->cards->getCardsInLocation('table_up', $arg);
+            $downCards = array_values($this->cards->getCardsInLocation('table_down', $arg));
+            $upCards = array_values($this->cards->getCardsInLocation('table_up', $arg));
 
             $slotData = [
                 'slot' => $slot,
@@ -394,7 +394,7 @@ class Game extends \Bga\GameFramework\Table
 
         for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
             $arg = Cards::slotArg($playerId, $slot);
-            $upCards = $this->cards->getCardsInLocation('table_up', $arg);
+            $upCards = array_values($this->cards->getCardsInLocation('table_up', $arg));
             if (count($upCards) === 0) {
                 continue;
             }
@@ -562,7 +562,7 @@ class Game extends \Bga\GameFramework\Table
 
         for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
             $arg = Cards::slotArg($playerId, $slot);
-            $up = $this->cards->getCardsInLocation('table_up', $arg);
+            $up = array_values($this->cards->getCardsInLocation('table_up', $arg));
             foreach ($up as $card) {
                 if ((int) $card['id'] === $cardId) {
                     return $card;
@@ -585,7 +585,7 @@ class Game extends \Bga\GameFramework\Table
         if ($includeFaceUp) {
             for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
                 $arg = Cards::slotArg($playerId, $slot);
-                $up = $this->cards->getCardsInLocation('table_up', $arg);
+                $up = array_values($this->cards->getCardsInLocation('table_up', $arg));
                 if (count($up) > 0 && Cards::cardRank($up[0]) === $rank) {
                     $count++;
                 }
@@ -598,7 +598,7 @@ class Game extends \Bga\GameFramework\Table
     public function getDownCard(int $playerId, int $slot): ?array
     {
         $arg = Cards::slotArg($playerId, $slot);
-        $down = $this->cards->getCardsInLocation('table_down', $arg);
+        $down = array_values($this->cards->getCardsInLocation('table_down', $arg));
 
         return count($down) > 0 ? $down[0] : null;
     }

@@ -12,13 +12,18 @@ class PlayerTurn {
         this.bga = bga;
         this.selectedCardIds = new Set();
         this.selectedBlindSlot = null;
+        this.isActive = false;
     }
 
     onEnteringState(args, isCurrentPlayerActive) {
         this.selectedCardIds.clear();
         this.selectedBlindSlot = null;
+        this.isActive = !!isCurrentPlayerActive;
+        this.args = args;
         this.game.renderBoard();
         this.game.updateSelectionUi();
+        this.game.setActionBarVisible(isCurrentPlayerActive);
+        this.updateActionButtons(args);
 
         const roundLabel = _('Round ${round} of ${total}')
             .replace('${round}', args.round)
@@ -26,44 +31,71 @@ class PlayerTurn {
 
         if (args.inFinalTurns) {
             this.bga.statusBar.setTitle(isCurrentPlayerActive
-                ? _('${you} — final turns — ${round}')
-                : _('${actplayer} — final turns — ${round}'));
+                ? _('${you} — final turns')
+                : _('${actplayer} — final turns'));
         } else if (isCurrentPlayerActive) {
-            this.bga.statusBar.setTitle(_('${you} must play, pick up, or play face-down — ${round}')
-                .replace('${round}', roundLabel));
+            this.bga.statusBar.setTitle(_('${you} must play, pick up, or play face-down'));
         } else {
-            this.bga.statusBar.setTitle(_('${actplayer} is playing — ${round}')
-                .replace('${round}', roundLabel));
+            this.bga.statusBar.setTitle(_('${actplayer} is playing'));
         }
 
+        this.bga.statusBar.removeActionButtons();
         if (isCurrentPlayerActive) {
-            this.args = args;
-            this.game.playBtn = this.bga.statusBar.addActionButton(_('Play selected'), () => this.onPlaySelected(), { color: 'primary' });
-            this.game.pickupBtn = this.bga.statusBar.addActionButton(_('Pick up pile'), () => this.onPickUp(), { color: 'secondary' });
-            this.game.blindBtn = this.bga.statusBar.addActionButton(_('Play face-down'), () => this.onPlayBlind(), { color: 'alert' });
-            this.game.clearBtn = this.bga.statusBar.addActionButton(_('Clear selection'), () => this.clearSelection(), { color: 'secondary' });
-            this.updateActionButtons(args);
+            this.bga.statusBar.addActionButton(_('Play selected'), () => this.onPlaySelected(), { color: 'primary' });
+            this.bga.statusBar.addActionButton(_('Pick up pile'), () => this.onPickUp(), {
+                color: 'secondary',
+                disabled: !args.canPickUp,
+            });
+            this.bga.statusBar.addActionButton(_('Play face-down'), () => this.onPlayBlind(), {
+                color: 'alert',
+                disabled: true,
+                id: 'scoop-btn-blind',
+            });
+            this.bga.statusBar.addActionButton(_('Clear'), () => this.clearSelection(), { color: 'secondary' });
+        }
+
+        const hint = document.getElementById('scoop-action-hint');
+        if (hint) {
+            hint.textContent = isCurrentPlayerActive
+                ? _('Select same-rank cards, then Play. Or click an uncovered face-down card.')
+                : (roundLabel + ' — ' + _('Waiting for opponent'));
         }
     }
 
     onLeavingState() {
+        this.isActive = false;
         this.selectedCardIds.clear();
         this.selectedBlindSlot = null;
+        this.game.setActionBarVisible(false);
+        this.bga.statusBar.removeActionButtons();
     }
 
     updateActionButtons(args) {
         const hasSelection = this.selectedCardIds.size > 0;
-        const canPickUp = args.canPickUp;
+        const canPickUp = !!(args && args.canPickUp);
         const canBlind = this.selectedBlindSlot !== null;
 
-        if (this.game.playBtn) {
-            this.game.playBtn.disabled = !hasSelection || canBlind;
+        const playBtn = document.getElementById('scoop-btn-play');
+        const pickupBtn = document.getElementById('scoop-btn-pickup');
+        const blindBtn = document.getElementById('scoop-btn-blind-local');
+        const clearBtn = document.getElementById('scoop-btn-clear');
+
+        if (playBtn) {
+            playBtn.disabled = !this.isActive || !hasSelection || canBlind;
         }
-        if (this.game.pickupBtn) {
-            this.game.pickupBtn.disabled = !canPickUp;
+        if (pickupBtn) {
+            pickupBtn.disabled = !this.isActive || !canPickUp;
         }
-        if (this.game.blindBtn) {
-            this.game.blindBtn.disabled = !canBlind;
+        if (blindBtn) {
+            blindBtn.disabled = !this.isActive || !canBlind;
+        }
+        if (clearBtn) {
+            clearBtn.disabled = !this.isActive;
+        }
+
+        const statusBlind = document.getElementById('scoop-btn-blind');
+        if (statusBlind) {
+            statusBlind.disabled = !canBlind;
         }
     }
 
@@ -77,11 +109,14 @@ class PlayerTurn {
     }
 
     onCardClick(cardId, source) {
-        if (this.selectedBlindSlot !== null && source !== 'hand' && source !== 'table_up') {
+        if (!this.isActive) {
             return;
         }
 
         if (this.selectedBlindSlot !== null) {
+            if (source !== 'hand' && source !== 'table_up') {
+                return;
+            }
             if (this.selectedCardIds.has(cardId)) {
                 this.selectedCardIds.delete(cardId);
             } else {
@@ -117,7 +152,10 @@ class PlayerTurn {
     }
 
     onBlindSlotClick(slot) {
-        if (this.args && !this.args.blindSlots.includes(slot)) {
+        if (!this.isActive) {
+            return;
+        }
+        if (this.args && !(this.args.blindSlots || []).includes(slot)) {
             return;
         }
 
@@ -140,7 +178,6 @@ class PlayerTurn {
         if (cardIds.length === 0) {
             return;
         }
-
         this.bga.actions.performAction('actPlayCards', { card_ids: cardIds });
     }
 
@@ -152,7 +189,6 @@ class PlayerTurn {
         if (this.selectedBlindSlot === null) {
             return;
         }
-
         this.bga.actions.performAction('actPlayBlind', {
             slot: this.selectedBlindSlot,
             extra_card_ids: [...this.selectedCardIds],
@@ -171,9 +207,13 @@ export class Game {
         this.currentPlayerId = null;
     }
 
+    getCurrentPlayerId() {
+        return this.bga.gameui?.player_id ?? this.bga.player_id ?? this.currentPlayerId;
+    }
+
     setup(gamedatas) {
         this.gamedatas = gamedatas;
-        this.currentPlayerId = this.bga.player_id;
+        this.currentPlayerId = this.getCurrentPlayerId();
         this.board = this.cloneBoardFromGamedatas(gamedatas);
 
         this.bga.gameArea.getElement().insertAdjacentHTML('beforeend', `
@@ -184,6 +224,15 @@ export class Game {
                     <div id="scoop-middle-pile"></div>
                 </div>
                 <div id="scoop-players"></div>
+                <div id="scoop-action-bar" class="scoop-action-bar-hidden">
+                    <div id="scoop-action-hint"></div>
+                    <div class="scoop-action-buttons">
+                        <button type="button" id="scoop-btn-play" class="scoop-btn scoop-btn-primary">${_('Play selected')}</button>
+                        <button type="button" id="scoop-btn-pickup" class="scoop-btn">${_('Pick up pile')}</button>
+                        <button type="button" id="scoop-btn-blind-local" class="scoop-btn scoop-btn-alert">${_('Play face-down')}</button>
+                        <button type="button" id="scoop-btn-clear" class="scoop-btn">${_('Clear')}</button>
+                    </div>
+                </div>
                 <div id="scoop-hand-zone">
                     <div id="scoop-hand-label">${_('Your hand')}</div>
                     <div id="scoop-hand"></div>
@@ -191,25 +240,44 @@ export class Game {
             </div>
         `);
 
+        document.getElementById('scoop-btn-play').addEventListener('click', () => this.playerTurn.onPlaySelected());
+        document.getElementById('scoop-btn-pickup').addEventListener('click', () => this.playerTurn.onPickUp());
+        document.getElementById('scoop-btn-blind-local').addEventListener('click', () => this.playerTurn.onPlayBlind());
+        document.getElementById('scoop-btn-clear').addEventListener('click', () => this.playerTurn.clearSelection());
+
         Object.values(gamedatas.players).forEach(player => {
             this.bga.playerPanels.getElement(player.id).insertAdjacentHTML('beforeend', `
                 <div class="scoop-panel-score">${_('Score')}: <span id="scoop-score-${player.id}">${player.score}</span></div>
             `);
         });
 
+        this.setActionBarVisible(false);
         this.renderBoard();
         this.setupNotifications();
     }
 
+    setActionBarVisible(visible) {
+        const bar = document.getElementById('scoop-action-bar');
+        if (!bar) {
+            return;
+        }
+        bar.classList.toggle('scoop-action-bar-hidden', !visible);
+    }
+
     cloneBoardFromGamedatas(gamedatas) {
+        const handCounts = {};
+        Object.entries(gamedatas.handCounts || {}).forEach(([id, count]) => {
+            handCounts[id] = Number(count);
+        });
+
         return {
-            round: gamedatas.round,
-            numRounds: gamedatas.numRounds,
-            inFinalTurns: gamedatas.inFinalTurns,
+            round: Number(gamedatas.round),
+            numRounds: Number(gamedatas.numRounds),
+            inFinalTurns: !!gamedatas.inFinalTurns,
             middle: [...(gamedatas.middle || [])],
-            middleCount: gamedatas.middleCount,
+            middleCount: Number(gamedatas.middleCount || 0),
             myHand: [...(gamedatas.myHand || [])],
-            handCounts: { ...gamedatas.handCounts },
+            handCounts,
             tableSlots: JSON.parse(JSON.stringify(gamedatas.tableSlots || {})),
             players: { ...gamedatas.players },
         };
@@ -227,18 +295,19 @@ export class Game {
         if (!this.board) {
             return null;
         }
-        const inHand = this.board.myHand.find(c => c.id === cardId);
+        const id = Number(cardId);
+        const inHand = this.board.myHand.find(c => Number(c.id) === id);
         if (inHand) {
             return inHand;
         }
         for (const pile of this.board.middle) {
-            if (pile.id === cardId) {
+            if (Number(pile.id) === id) {
                 return pile;
             }
         }
         for (const playerId of Object.keys(this.board.tableSlots)) {
             for (const slot of this.board.tableSlots[playerId]) {
-                if (slot.up && slot.up.id === cardId) {
+                if (slot.up && Number(slot.up.id) === id) {
                     return slot.up;
                 }
             }
@@ -266,6 +335,7 @@ export class Game {
         this.renderPlayers();
         this.renderHand();
         this.updateScores();
+        this.updateSelectionUi();
     }
 
     updateScores() {
@@ -306,12 +376,13 @@ export class Game {
         }
         container.innerHTML = '';
 
+        const me = Number(this.getCurrentPlayerId());
         const playerIds = Object.keys(this.board.tableSlots).map(Number);
         playerIds.sort((a, b) => {
-            if (a === this.currentPlayerId) {
+            if (a === me) {
                 return -1;
             }
-            if (b === this.currentPlayerId) {
+            if (b === me) {
                 return 1;
             }
             return a - b;
@@ -319,9 +390,13 @@ export class Game {
 
         playerIds.forEach(playerId => {
             const player = this.board.players[playerId] || this.board.players[String(playerId)];
-            const isMe = playerId === this.currentPlayerId;
+            if (!player) {
+                return;
+            }
+            const isMe = Number(playerId) === me;
             const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)] || [];
-            const handCount = this.board.handCounts[playerId] || 0;
+            const handCount = Number(this.board.handCounts[playerId] ?? this.board.handCounts[String(playerId)] ?? 0);
+            const tableCount = slots.filter(s => s.hasDown || s.up).length;
 
             const zone = document.createElement('div');
             zone.className = 'scoop-player-zone' + (isMe ? ' scoop-player-me' : '');
@@ -329,7 +404,7 @@ export class Game {
 
             zone.innerHTML = `
                 <div class="scoop-player-name" style="color:#${player.color}">${player.name}${isMe ? ' (' + _('you') + ')' : ''}</div>
-                <div class="scoop-player-meta">${_('Cards')}: ${handCount + slots.filter(s => s.hasDown || s.up).length}</div>
+                <div class="scoop-player-meta">${_('Hand')}: ${handCount} · ${_('Table')}: ${tableCount}</div>
                 <div class="scoop-slots"></div>
             `;
 
@@ -337,6 +412,7 @@ export class Game {
             slots.forEach(slot => {
                 const slotEl = document.createElement('div');
                 slotEl.className = 'scoop-slot';
+                slotEl.dataset.slot = String(slot.slot);
 
                 if (slot.up) {
                     const cardEl = this.createCardElement(slot.up, 'table_up');
@@ -418,10 +494,10 @@ export class Game {
         });
 
         if (this.playerTurn.selectedBlindSlot !== null) {
-            const zones = document.querySelectorAll('.scoop-player-me .scoop-slot');
-            const slotEl = zones[this.playerTurn.selectedBlindSlot];
-            if (slotEl) {
-                const back = slotEl.querySelector('.scoop-blind-target');
+            const zone = document.querySelector('.scoop-player-me');
+            if (zone) {
+                const slotEl = zone.querySelector(`.scoop-slot[data-slot="${this.playerTurn.selectedBlindSlot}"]`);
+                const back = slotEl?.querySelector('.scoop-blind-target');
                 if (back) {
                     back.classList.add('scoop-blind-selected');
                 }
@@ -430,21 +506,16 @@ export class Game {
     }
 
     removeCardsFromPlayer(cardIds, playerId) {
-        if (playerId === this.currentPlayerId) {
-            this.board.myHand = this.board.myHand.filter(c => !cardIds.includes(c.id));
+        const ids = cardIds.map(Number);
+        if (Number(playerId) === Number(this.getCurrentPlayerId())) {
+            this.board.myHand = this.board.myHand.filter(c => !ids.includes(Number(c.id)));
         }
 
-        const slots = this.board.tableSlots[playerId];
+        const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)];
         if (slots) {
             slots.forEach(slot => {
-                if (slot.up && cardIds.includes(slot.up.id)) {
+                if (slot.up && ids.includes(Number(slot.up.id))) {
                     slot.up = null;
-                }
-                if (cardIds.some(id => {
-                    const downMatch = slot.hasDown && !slot.up;
-                    return downMatch;
-                })) {
-                    // handled per notification
                 }
             });
         }
@@ -455,18 +526,24 @@ export class Game {
     }
 
     async notif_roundStarted(args) {
-        this.board.round = args.round;
-        this.board.inFinalTurns = args.inFinalTurns || false;
+        this.board.round = Number(args.round);
+        this.board.inFinalTurns = !!args.inFinalTurns;
         this.board.middle = args.middle || [];
-        this.board.handCounts = { ...args.handCounts };
+        const handCounts = {};
+        Object.entries(args.handCounts || {}).forEach(([id, count]) => {
+            handCounts[id] = Number(count);
+        });
+        this.board.handCounts = handCounts;
         this.board.tableSlots = JSON.parse(JSON.stringify(args.tableSlots || {}));
         this.renderBoard();
     }
 
     async notif_handUpdated(args) {
         this.board.myHand = [...args.cards];
-        if (this.currentPlayerId) {
-            this.board.handCounts[this.currentPlayerId] = args.cards.length;
+        const me = this.getCurrentPlayerId();
+        if (me) {
+            this.board.handCounts[me] = args.cards.length;
+            this.board.handCounts[String(me)] = args.cards.length;
         }
         this.renderHand();
         this.updateSelectionUi();
@@ -475,10 +552,8 @@ export class Game {
     async notif_cardsPlayed(args) {
         const playerId = args.player_id;
         const cardIds = args.card_ids;
-
         this.removeCardsFromPlayer(cardIds, playerId);
         args.cards.forEach(card => this.board.middle.push(card));
-        this.board.handCounts[playerId] = (this.board.handCounts[playerId] || 0);
         this.recountHand(playerId);
         this.renderBoard();
     }
@@ -487,19 +562,19 @@ export class Game {
         const playerId = args.player_id;
         const cardIds = args.cards.map(c => c.id);
 
-        if (playerId === this.currentPlayerId) {
-            this.board.myHand = this.board.myHand.filter(c => !cardIds.includes(c.id));
+        if (Number(playerId) === Number(this.getCurrentPlayerId())) {
+            this.board.myHand = this.board.myHand.filter(c => !cardIds.map(Number).includes(Number(c.id)));
         }
 
-        const slots = this.board.tableSlots[playerId];
+        const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)];
         if (slots) {
-            const slot = slots.find(s => s.slot === args.slot);
+            const slot = slots.find(s => Number(s.slot) === Number(args.slot));
             if (slot) {
                 slot.hasDown = false;
                 slot.up = null;
             }
             args.cards.slice(1).forEach(card => {
-                const upSlot = slots.find(s => s.up && s.up.id === card.id);
+                const upSlot = slots.find(s => s.up && Number(s.up.id) === Number(card.id));
                 if (upSlot) {
                     upSlot.up = null;
                 }
@@ -519,9 +594,10 @@ export class Game {
 
     async notif_pickup(args) {
         const playerId = args.player_id;
-        const count = args.card_count;
+        const count = Number(args.card_count);
         this.board.middle = [];
-        this.board.handCounts[playerId] = (this.board.handCounts[playerId] || 0) + count;
+        const key = this.board.handCounts[playerId] !== undefined ? playerId : String(playerId);
+        this.board.handCounts[key] = Number(this.board.handCounts[key] || 0) + count;
         this.renderBoard();
     }
 
@@ -531,16 +607,19 @@ export class Game {
     }
 
     async notif_roundEnded(args) {
-        this.board.round = args.round;
+        this.board.round = Number(args.round);
         Object.entries(args.players).forEach(([id, player]) => {
-            this.board.players[id].score = player.score;
+            if (this.board.players[id]) {
+                this.board.players[id].score = player.score;
+            }
         });
         this.updateScores();
     }
 
     recountHand(playerId) {
-        if (playerId === this.currentPlayerId) {
+        if (Number(playerId) === Number(this.getCurrentPlayerId())) {
             this.board.handCounts[playerId] = this.board.myHand.length;
+            this.board.handCounts[String(playerId)] = this.board.myHand.length;
         }
     }
 

@@ -7,6 +7,7 @@ namespace Bga\Games\Scoop\States;
 use Bga\GameFramework\StateType;
 use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
+use Bga\GameFramework\Actions\Types\IntArrayParam;
 use Bga\GameFramework\UserException;
 use Bga\Games\Scoop\Cards;
 use Bga\Games\Scoop\Game;
@@ -47,8 +48,11 @@ class PlayerTurn extends GameState
      * @param int[] $card_ids
      */
     #[PossibleAction]
-    public function actPlayCards(array $card_ids, int $activePlayerId, array $args)
-    {
+    public function actPlayCards(
+        #[IntArrayParam(min: 1, max: 4)] array $card_ids,
+        int $activePlayerId,
+        array $args,
+    ) {
         $cards = $this->game->validatePlayCards($activePlayerId, $card_ids);
         $topGroupBefore = Cards::getTopGroup($this->game->getMiddleCards());
         $this->game->moveCardsToMiddle($cards);
@@ -79,8 +83,12 @@ class PlayerTurn extends GameState
      * @param int[] $extra_card_ids
      */
     #[PossibleAction]
-    public function actPlayBlind(int $slot, array $extra_card_ids, int $activePlayerId, array $args)
-    {
+    public function actPlayBlind(
+        int $slot,
+        #[IntArrayParam(min: 0, max: 3)] array $extra_card_ids,
+        int $activePlayerId,
+        array $args,
+    ) {
         $blindSlots = $this->game->getBlindableSlots($activePlayerId);
         if (!in_array($slot, $blindSlots, true)) {
             throw new UserException(clienttranslate('You cannot play from that face-down slot'));
