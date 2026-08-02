@@ -44,7 +44,7 @@ class Game extends \Bga\GameFramework\Table
     public function getGameProgression(): int
     {
         $round = (int) $this->getGameStateValue('round_number');
-        $numRounds = count($this->getPlayers());
+        $numRounds = $this->getPlayersNumber();
 
         if ($numRounds === 0) {
             return 0;
@@ -135,6 +135,11 @@ class Game extends \Bga\GameFramework\Table
         return $this->bga->tableOptions->get(self::OPTION_DECK_COUNT) ?? 2;
     }
 
+    public function sourceLocation(int $deckIndex): string
+    {
+        return 'source' . $deckIndex;
+    }
+
     public function createSourceDecks(): void
     {
         $deckCount = $this->getDeckCount();
@@ -150,44 +155,41 @@ class Game extends \Bga\GameFramework\Table
                     ];
                 }
             }
-            $this->cards->createCards($cardDefs, 'source', $deckIndex);
+            $this->cards->createCards($cardDefs, $this->sourceLocation($deckIndex));
         }
     }
 
     public function resetCardsToSource(): void
     {
         $locations = ['hand', 'table_up', 'table_down', 'middle', 'discard'];
+        for ($deckIndex = 0; $deckIndex < $this->getDeckCount(); $deckIndex++) {
+            $locations[] = $this->sourceLocation($deckIndex);
+        }
+
         foreach ($locations as $location) {
             $cards = $this->cards->getCardsInLocation($location);
             foreach ($cards as $card) {
                 $deckIdx = Cards::cardDeckIndex($card);
-                $this->cards->moveCard((int) $card['id'], 'source', $deckIdx);
+                $this->cards->moveCard((int) $card['id'], $this->sourceLocation($deckIdx));
             }
         }
     }
 
     public function pickFromSourceDeck(int $deckIndex, int $count, int $playerId): void
     {
-        for ($i = 0; $i < $count; $i++) {
-            $deckCards = $this->cards->getCardsInLocation('source', $deckIndex);
-            if ($deckCards === []) {
-                break;
-            }
-            usort($deckCards, fn($a, $b) => (int) $a['location_arg'] <=> (int) $b['location_arg']);
-            $top = $deckCards[array_key_last($deckCards)];
-            $this->cards->moveCard((int) $top['id'], 'hand', $playerId);
-        }
+        $location = $this->sourceLocation($deckIndex);
+        $this->cards->pickCardsForLocation($count, $location, 'hand', $playerId);
     }
 
     public function setupRound(): void
     {
         $deckCount = $this->getDeckCount();
-        $playerIds = array_map('intval', array_keys($this->getPlayers()));
+        $playerIds = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
 
         $this->resetCardsToSource();
 
         for ($deckIndex = 0; $deckIndex < $deckCount; $deckIndex++) {
-            $this->cards->shuffle('source', $deckIndex);
+            $this->cards->shuffle($this->sourceLocation($deckIndex));
         }
 
         $this->setGameStateValue('went_out_player_id', 0);
@@ -224,7 +226,7 @@ class Game extends \Bga\GameFramework\Table
 
         foreach ($playerIds as $playerId) {
             $hand = Cards::sortByRank(array_map([$this, 'enrichCard'], $this->cards->getCardsInLocation('hand', $playerId)));
-            $this->bga->notify->player('handUpdated', $playerId, clienttranslate('New hand dealt'), [
+            $this->bga->notify->player($playerId, 'handUpdated', clienttranslate('New hand dealt'), [
                 'cards' => $hand,
             ]);
         }
@@ -256,7 +258,7 @@ class Game extends \Bga\GameFramework\Table
     public function scoreRoundAndAdvance(): bool
     {
         $roundScores = [];
-        $playerIds = array_map('intval', array_keys($this->getPlayers()));
+        $playerIds = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
 
         foreach ($playerIds as $playerId) {
             $remaining = array_merge(
@@ -493,7 +495,7 @@ class Game extends \Bga\GameFramework\Table
         ]);
 
         if ($middle !== []) {
-            $this->bga->notify->player('handUpdated', $playerId, clienttranslate('You picked up ${n} cards'), [
+            $this->bga->notify->player($playerId, 'handUpdated', clienttranslate('You picked up ${n} cards'), [
                 'cards' => array_map([$this, 'enrichCard'], Cards::sortByRank($middle)),
                 'n' => count($middle),
             ]);

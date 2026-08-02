@@ -39,7 +39,7 @@ class PlayerTurn extends GameState
             'middleTopCount' => $topGroup['count'],
             'inFinalTurns' => (int) $this->game->getGameStateValue('in_final_turns') === 1,
             'round' => (int) $this->game->getGameStateValue('round_number'),
-            'numRounds' => count($this->game->getPlayers()),
+            'numRounds' => $this->game->getPlayersNumber(),
         ];
     }
 
