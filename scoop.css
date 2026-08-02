@@ -27,19 +27,20 @@
 #scoop-arena {
     position: relative;
     width: 100%;
-    height: 460px;
+    height: 520px;
     margin: 0 auto 12px;
 }
 
 #scoop-middle-zone {
     position: absolute;
     left: 50%;
-    top: 50%;
+    top: 42%;
     transform: translate(-50%, -50%);
     z-index: 5;
     display: flex;
     flex-direction: column;
     align-items: center;
+    max-width: 90%;
 }
 
 #scoop-middle-label,
@@ -53,13 +54,13 @@
 
 #scoop-middle-pile {
     position: relative;
-    height: 124px;
-    min-width: 88px;
+    height: 100px;
+    min-width: 72px;
 }
 
 .scoop-empty-pile {
-    width: 88px;
-    height: 124px;
+    width: 72px;
+    height: 100px;
     border: 2px dashed rgba(245, 240, 230, 0.35);
     border-radius: 8px;
     display: flex;
@@ -69,15 +70,10 @@
     color: rgba(245, 240, 230, 0.6);
 }
 
-.scoop-pile-card {
+#scoop-middle-pile .scoop-pile-card {
     position: absolute;
     top: 0;
-    left: 0;
-}
-
-.scoop-pile-card:not(:last-child) .scoop-card-center,
-.scoop-pile-card:not(:last-child) .scoop-card-br {
-    display: none;
+    margin: 0;
 }
 
 .scoop-player-zone {
@@ -213,6 +209,12 @@
 
 #scoop-middle-pile .scoop-card-corner {
     font-size: 12px;
+}
+
+/* Buried pile cards: only show left rank strip */
+#scoop-middle-pile .scoop-pile-card:not(:last-child) .scoop-card-center,
+#scoop-middle-pile .scoop-pile-card:not(:last-child) .scoop-card-br {
+    display: none;
 }
 
 .scoop-card[data-location="hand"],

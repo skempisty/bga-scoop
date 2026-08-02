@@ -138,6 +138,9 @@ class PlayerTurn extends GameState
             'cards' => array_map([$this->game, 'enrichCard'], $allCards),
             'cards_label' => implode(', ', array_map(fn($c) => Cards::formatCardLabel($c), $allCards)),
             'illegal' => $illegalBlind,
+            'cardCounts' => $this->game->getPublicCardCounts(),
+            'handCounts' => $this->game->getPublicHandCounts(),
+            'tableSlots' => $this->game->getPublicTableSlots(),
         ]);
 
         $result = $this->game->finalizePlay(

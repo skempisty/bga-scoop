@@ -22,31 +22,30 @@ class PlayerTurn {
         this.args = args;
         this.game.renderBoard();
         this.game.updateSelectionUi();
-        this.updateActionButtons(args);
 
         if (args.inFinalTurns) {
             this.bga.statusBar.setTitle(isCurrentPlayerActive
                 ? _('${you} — final turns')
                 : _('${actplayer} — final turns'));
         } else if (isCurrentPlayerActive) {
-            this.bga.statusBar.setTitle(_('${you} must play, pick up, or play face-down'));
+            this.bga.statusBar.setTitle(_('${you} must play cards or pick up the pile'));
         } else {
             this.bga.statusBar.setTitle(_('${actplayer} is playing'));
         }
 
         this.bga.statusBar.removeActionButtons();
         if (isCurrentPlayerActive) {
-            this.bga.statusBar.addActionButton(_('Play selected'), () => this.onPlaySelected(), { color: 'primary' });
+            this.bga.statusBar.addActionButton(_('Play selected'), () => this.onPlaySelected(), {
+                color: 'primary',
+                id: 'scoop-btn-play',
+                disabled: true,
+            });
             this.bga.statusBar.addActionButton(_('Pick up pile'), () => this.onPickUp(), {
                 color: 'secondary',
                 disabled: !args.canPickUp,
             });
-            this.bga.statusBar.addActionButton(_('Play face-down'), () => this.onPlayBlind(), {
-                color: 'alert',
-                disabled: true,
-                id: 'scoop-btn-blind',
-            });
             this.bga.statusBar.addActionButton(_('Clear'), () => this.clearSelection(), { color: 'secondary' });
+            this.updateActionButtons(args);
         }
     }
 
@@ -58,10 +57,26 @@ class PlayerTurn {
     }
 
     updateActionButtons(args) {
-        const canBlind = this.selectedBlindSlot !== null;
-        const statusBlind = document.getElementById('scoop-btn-blind');
-        if (statusBlind) {
-            statusBlind.disabled = !canBlind;
+        const hasPlay = this.selectedBlindSlot !== null || this.selectedCardIds.size > 0;
+        const playBtn = document.getElementById('scoop-btn-play');
+        if (playBtn) {
+            playBtn.disabled = !this.isActive || !hasPlay;
+        }
+
+        if (!this.isActive) {
+            return;
+        }
+
+        if (this.selectedBlindSlot !== null) {
+            this.bga.statusBar.setTitle(
+                _('${you} selected a face-down card — optionally add matching hand/face-up cards, then Play')
+            );
+        } else if (this.selectedCardIds.size > 0) {
+            this.bga.statusBar.setTitle(_('${you} — play the selected cards, or pick up'));
+        } else if (args?.inFinalTurns) {
+            this.bga.statusBar.setTitle(_('${you} — final turns'));
+        } else {
+            this.bga.statusBar.setTitle(_('${you} must play cards or pick up the pile'));
         }
     }
 
@@ -79,6 +94,8 @@ class PlayerTurn {
             return;
         }
 
+        // After selecting a face-down, hand/face-up clicks are optional extras
+        // (must match the revealed rank — validated on the server).
         if (this.selectedBlindSlot !== null) {
             if (source !== 'hand' && source !== 'table_up') {
                 return;
@@ -89,6 +106,8 @@ class PlayerTurn {
                 this.selectedCardIds.add(cardId);
             }
         } else {
+            // Selecting known cards clears any face-down selection
+            this.selectedBlindSlot = null;
             const card = this.game.findCard(cardId);
             if (!card) {
                 return;
@@ -129,6 +148,7 @@ class PlayerTurn {
             this.selectedBlindSlot = null;
             this.selectedCardIds.clear();
         } else {
+            // One face-down only; extras from hand/face-up can be added after
             this.selectedBlindSlot = slot;
             this.selectedCardIds.clear();
         }
@@ -140,6 +160,15 @@ class PlayerTurn {
     }
 
     onPlaySelected() {
+        if (this.selectedBlindSlot !== null) {
+            // Face-down + any selected hand/face-up extras (must match revealed rank)
+            this.bga.actions.performAction('actPlayBlind', {
+                slot: this.selectedBlindSlot,
+                extra_card_ids: this.selectedCardIds.size > 0 ? [...this.selectedCardIds] : [],
+            });
+            return;
+        }
+
         const cardIds = [...this.selectedCardIds];
         if (cardIds.length === 0) {
             return;
@@ -149,17 +178,6 @@ class PlayerTurn {
 
     onPickUp() {
         this.bga.actions.performAction('actPickUp', {});
-    }
-
-    onPlayBlind() {
-        if (this.selectedBlindSlot === null) {
-            return;
-        }
-        // Always send the key — empty arrays can be dropped by the request layer
-        this.bga.actions.performAction('actPlayBlind', {
-            slot: this.selectedBlindSlot,
-            extra_card_ids: this.selectedCardIds.size > 0 ? [...this.selectedCardIds] : [],
-        });
     }
 }
 
@@ -214,6 +232,10 @@ export class Game {
         Object.entries(gamedatas.handCounts || {}).forEach(([id, count]) => {
             handCounts[id] = Number(count);
         });
+        const cardCounts = {};
+        Object.entries(gamedatas.cardCounts || {}).forEach(([id, count]) => {
+            cardCounts[id] = Number(count);
+        });
 
         return {
             round: Number(gamedatas.round),
@@ -223,9 +245,46 @@ export class Game {
             middleCount: Number(gamedatas.middleCount || 0),
             myHand: [...(gamedatas.myHand || [])],
             handCounts,
+            cardCounts,
             tableSlots: JSON.parse(JSON.stringify(gamedatas.tableSlots || {})),
             players: { ...gamedatas.players },
         };
+    }
+
+    applyCountSnapshots(args) {
+        if (args.handCounts) {
+            const handCounts = {};
+            Object.entries(args.handCounts).forEach(([id, count]) => {
+                handCounts[id] = Number(count);
+            });
+            this.board.handCounts = handCounts;
+        }
+        if (args.cardCounts) {
+            const cardCounts = {};
+            Object.entries(args.cardCounts).forEach(([id, count]) => {
+                cardCounts[id] = Number(count);
+            });
+            this.board.cardCounts = cardCounts;
+        }
+        if (args.tableSlots) {
+            this.board.tableSlots = JSON.parse(JSON.stringify(args.tableSlots));
+        }
+    }
+
+    countTableCards(slots) {
+        return (slots || []).reduce((n, slot) => n + (slot.hasDown ? 1 : 0) + (slot.up ? 1 : 0), 0);
+    }
+
+    getPlayerTotalCards(playerId) {
+        if (this.board.cardCounts) {
+            const direct = this.board.cardCounts[playerId] ?? this.board.cardCounts[String(playerId)];
+            if (direct !== undefined) {
+                return Number(direct);
+            }
+        }
+        const handCount = Number(this.board.handCounts[playerId] ?? this.board.handCounts[String(playerId)] ?? 0);
+        const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)] || [];
+        return handCount + this.countTableCards(slots);
     }
 
     sortHand(cards) {
@@ -306,16 +365,18 @@ export class Game {
             return;
         }
 
-        const peek = 20;
+        const peek = 22;
         const cardWidth = 72;
         this.board.middle.forEach((card, index) => {
             const el = this.createCardElement(card, 'middle');
             el.classList.add('scoop-pile-card');
             el.style.left = `${index * peek}px`;
+            el.style.top = '0px';
             el.style.zIndex = String(index + 1);
             pile.appendChild(el);
         });
-        pile.style.width = `${cardWidth + (this.board.middle.length - 1) * peek}px`;
+        pile.style.width = `${cardWidth + Math.max(0, this.board.middle.length - 1) * peek}px`;
+        pile.style.height = '100px';
     }
 
     orderedPlayerIdsAroundTable() {
@@ -345,8 +406,8 @@ export class Game {
         const rect = arena.getBoundingClientRect();
         const cx = rect.width / 2;
         const cy = rect.height / 2;
-        const radiusX = Math.min(rect.width * 0.38, 280);
-        const radiusY = Math.min(rect.height * 0.36, 180);
+        const radiusX = Math.min(rect.width * 0.42, 300);
+        const radiusY = Math.min(rect.height * 0.40, 200);
 
         playerIds.forEach((playerId, index) => {
             const player = this.board.players[playerId] || this.board.players[String(playerId)];
@@ -355,8 +416,7 @@ export class Game {
             }
             const isMe = Number(playerId) === me;
             const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)] || [];
-            const handCount = Number(this.board.handCounts[playerId] ?? this.board.handCounts[String(playerId)] ?? 0);
-            const tableCount = slots.filter(s => s.hasDown || s.up).length;
+            const totalCards = this.getPlayerTotalCards(playerId);
 
             // i=0 at bottom; then clockwise
             const angle = (2 * Math.PI * index) / count;
@@ -371,7 +431,7 @@ export class Game {
 
             zone.innerHTML = `
                 <div class="scoop-player-name" style="color:#${player.color}">${player.name}${isMe ? ' (' + _('you') + ')' : ''}</div>
-                <div class="scoop-player-meta">${_('Hand')}: ${handCount} · ${_('Table')}: ${tableCount}</div>
+                <div class="scoop-player-meta">${_('Cards')}: ${totalCards}</div>
                 <div class="scoop-slots"></div>
             `;
 
@@ -472,22 +532,6 @@ export class Game {
         }
     }
 
-    removeCardsFromPlayer(cardIds, playerId) {
-        const ids = cardIds.map(Number);
-        if (Number(playerId) === Number(this.getCurrentPlayerId())) {
-            this.board.myHand = this.board.myHand.filter(c => !ids.includes(Number(c.id)));
-        }
-
-        const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)];
-        if (slots) {
-            slots.forEach(slot => {
-                if (slot.up && ids.includes(Number(slot.up.id))) {
-                    slot.up = null;
-                }
-            });
-        }
-    }
-
     setupNotifications() {
         this.bga.notifications.setupPromiseNotifications();
     }
@@ -496,12 +540,7 @@ export class Game {
         this.board.round = Number(args.round);
         this.board.inFinalTurns = !!args.inFinalTurns;
         this.board.middle = args.middle || [];
-        const handCounts = {};
-        Object.entries(args.handCounts || {}).forEach(([id, count]) => {
-            handCounts[id] = Number(count);
-        });
-        this.board.handCounts = handCounts;
-        this.board.tableSlots = JSON.parse(JSON.stringify(args.tableSlots || {}));
+        this.applyCountSnapshots(args);
         this.renderBoard();
     }
 
@@ -511,17 +550,26 @@ export class Game {
         if (me) {
             this.board.handCounts[me] = args.cards.length;
             this.board.handCounts[String(me)] = args.cards.length;
+            // Keep total in sync: hand size + current table cards
+            const slots = this.board.tableSlots[me] || this.board.tableSlots[String(me)] || [];
+            const total = args.cards.length + this.countTableCards(slots);
+            this.board.cardCounts = this.board.cardCounts || {};
+            this.board.cardCounts[me] = total;
+            this.board.cardCounts[String(me)] = total;
         }
         this.renderHand();
+        this.renderPlayers();
         this.updateSelectionUi();
     }
 
     async notif_cardsPlayed(args) {
         const playerId = args.player_id;
-        const cardIds = args.card_ids;
-        this.removeCardsFromPlayer(cardIds, playerId);
+        const cardIds = (args.card_ids || []).map(Number);
+        if (Number(playerId) === Number(this.getCurrentPlayerId())) {
+            this.board.myHand = this.board.myHand.filter(c => !cardIds.includes(Number(c.id)));
+        }
         args.cards.forEach(card => this.board.middle.push(card));
-        this.recountHand(playerId);
+        this.applyCountSnapshots(args);
         this.renderBoard();
     }
 
@@ -533,23 +581,25 @@ export class Game {
             this.board.myHand = this.board.myHand.filter(c => !cardIds.map(Number).includes(Number(c.id)));
         }
 
-        const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)];
-        if (slots) {
-            const slot = slots.find(s => Number(s.slot) === Number(args.slot));
-            if (slot) {
-                slot.hasDown = false;
-                slot.up = null;
-            }
-            args.cards.slice(1).forEach(card => {
-                const upSlot = slots.find(s => s.up && Number(s.up.id) === Number(card.id));
-                if (upSlot) {
-                    upSlot.up = null;
+        if (!args.tableSlots) {
+            const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)];
+            if (slots) {
+                const slot = slots.find(s => Number(s.slot) === Number(args.slot));
+                if (slot) {
+                    slot.hasDown = false;
+                    slot.up = null;
                 }
-            });
+                args.cards.slice(1).forEach(card => {
+                    const upSlot = slots.find(s => s.up && Number(s.up.id) === Number(card.id));
+                    if (upSlot) {
+                        upSlot.up = null;
+                    }
+                });
+            }
         }
 
         args.cards.forEach(card => this.board.middle.push(card));
-        this.recountHand(playerId);
+        this.applyCountSnapshots(args);
         this.renderBoard();
     }
 
@@ -560,11 +610,8 @@ export class Game {
     }
 
     async notif_pickup(args) {
-        const playerId = args.player_id;
-        const count = Number(args.card_count);
         this.board.middle = [];
-        const key = this.board.handCounts[playerId] !== undefined ? playerId : String(playerId);
-        this.board.handCounts[key] = Number(this.board.handCounts[key] || 0) + count;
+        this.applyCountSnapshots(args);
         this.renderBoard();
     }
 
@@ -581,13 +628,6 @@ export class Game {
             }
         });
         this.updateScores();
-    }
-
-    recountHand(playerId) {
-        if (Number(playerId) === Number(this.getCurrentPlayerId())) {
-            this.board.handCounts[playerId] = this.board.myHand.length;
-            this.board.handCounts[String(playerId)] = this.board.myHand.length;
-        }
     }
 
     showScoopFlash() {

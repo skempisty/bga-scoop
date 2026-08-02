@@ -65,10 +65,12 @@ class Game extends \Bga\GameFramework\Table
 
         $playerIds = array_map('intval', array_keys($players));
         $handCounts = [];
+        $cardCounts = [];
         $tableSlots = [];
 
         foreach ($playerIds as $playerId) {
             $handCounts[$playerId] = $this->cards->countCardsInLocation('hand', $playerId);
+            $cardCounts[$playerId] = $this->getPlayerCardCount($playerId);
             $tableSlots[$playerId] = $this->getTableSlotsForPlayer($playerId, $currentPlayerId);
         }
 
@@ -84,6 +86,7 @@ class Game extends \Bga\GameFramework\Table
             'inFinalTurns' => (int) $this->getGameStateValue('in_final_turns') === 1,
             'deckCount' => $this->getDeckCount(),
             'handCounts' => $handCounts,
+            'cardCounts' => $cardCounts,
             'tableSlots' => $tableSlots,
             'middle' => array_map([$this, 'enrichCard'], $middleCards),
             'middleCount' => count($middleCards),
@@ -93,6 +96,38 @@ class Game extends \Bga\GameFramework\Table
         ];
 
         return $result;
+    }
+
+    public function getPublicCardCounts(): array
+    {
+        $counts = [];
+        foreach (array_keys($this->loadPlayersBasicInfos()) as $playerId) {
+            $counts[(int) $playerId] = $this->getPlayerCardCount((int) $playerId);
+        }
+
+        return $counts;
+    }
+
+    public function getPublicHandCounts(): array
+    {
+        $counts = [];
+        foreach (array_keys($this->loadPlayersBasicInfos()) as $playerId) {
+            $pid = (int) $playerId;
+            $counts[$pid] = $this->cards->countCardsInLocation('hand', $pid);
+        }
+
+        return $counts;
+    }
+
+    public function getPublicTableSlots(): array
+    {
+        $slots = [];
+        foreach (array_keys($this->loadPlayersBasicInfos()) as $playerId) {
+            $pid = (int) $playerId;
+            $slots[$pid] = $this->getTableSlotsForPlayer($pid, 0);
+        }
+
+        return $slots;
     }
 
     protected function setupNewGame($players, $options = [])
@@ -208,18 +243,12 @@ class Game extends \Bga\GameFramework\Table
         }
 
         $round = (int) $this->getGameStateValue('round_number');
-        $handCounts = [];
-        $tableSlots = [];
-        foreach ($playerIds as $playerId) {
-            $handCounts[$playerId] = $this->cards->countCardsInLocation('hand', $playerId);
-            $tableSlots[$playerId] = $this->getTableSlotsForPlayer($playerId, 0);
-        }
-
         $this->bga->notify->all('roundStarted', clienttranslate('Round ${round} begins'), [
             'round' => $round,
             'starterPlayerId' => (int) $this->getGameStateValue('starter_player_id'),
-            'handCounts' => $handCounts,
-            'tableSlots' => $tableSlots,
+            'handCounts' => $this->getPublicHandCounts(),
+            'cardCounts' => $this->getPublicCardCounts(),
+            'tableSlots' => $this->getPublicTableSlots(),
             'middle' => [],
             'inFinalTurns' => false,
         ]);
@@ -446,6 +475,9 @@ class Game extends \Bga\GameFramework\Table
                 'card_ids' => $cardIds,
                 'cards' => array_map([$this, 'enrichCard'], $playedCards),
                 'cards_label' => implode(', ', $labels),
+                'cardCounts' => $this->getPublicCardCounts(),
+                'handCounts' => $this->getPublicHandCounts(),
+                'tableSlots' => $this->getPublicTableSlots(),
             ]);
         }
 
@@ -493,6 +525,9 @@ class Game extends \Bga\GameFramework\Table
         $this->bga->notify->all('pickup', clienttranslate('${player_name} picks up the pile'), [
             'player_id' => $playerId,
             'card_count' => $pickedCount,
+            'cardCounts' => $this->getPublicCardCounts(),
+            'handCounts' => $this->getPublicHandCounts(),
+            'tableSlots' => $this->getPublicTableSlots(),
         ]);
 
         if ($pickedCount > 0) {
