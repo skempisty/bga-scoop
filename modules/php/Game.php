@@ -160,6 +160,8 @@ class Game extends \Bga\GameFramework\Table
         $this->setGameStateValue('went_out_player_id', 0);
         $this->setGameStateValue('in_final_turns', 0);
 
+        $this->bga->playerStats->init(['scoops', 'went_out', 'points_scored'], 0);
+
         $this->createSourceDecks();
 
         return RoundSetup::class;
@@ -302,6 +304,7 @@ class Game extends \Bga\GameFramework\Table
 
             if ($points > 0) {
                 $this->bga->playerScore->inc($playerId, $points);
+                $this->bga->playerStats->inc('points_scored', $points, $playerId);
             }
         }
 
@@ -392,6 +395,8 @@ class Game extends \Bga\GameFramework\Table
 
         $this->setGameStateValue('went_out_player_id', $playerId);
         $this->setGameStateValue('in_final_turns', 1);
+
+        $this->bga->playerStats->inc('went_out', 1, $playerId);
 
         $this->bga->notify->all('playerWentOut', clienttranslate('${player_name} is out! Everyone gets one last turn.'), [
             'player_id' => $playerId,
@@ -540,6 +545,8 @@ class Game extends \Bga\GameFramework\Table
         if ($middleIds !== []) {
             $this->cards->moveCards($middleIds, 'discard', 0);
         }
+
+        $this->bga->playerStats->inc('scoops', 1, $playerId);
 
         $this->bga->notify->all('scoop', clienttranslate('${player_name} scoops the pile!'), [
             'player_id' => $playerId,
