@@ -127,7 +127,7 @@ class PlayerTurn extends GameState
             throw new UserException(clienttranslate('You cannot play more than four of the same rank on the pile'));
         }
 
-        $this->game->cards->moveCard((int) $downCard['id'], 'middle', 0);
+        $this->game->cards->insertCardOnExtremePosition((int) $downCard['id'], 'middle', true);
         foreach ($extraCards as $card) {
             $this->game->cards->insertCardOnExtremePosition((int) $card['id'], 'middle', true);
         }

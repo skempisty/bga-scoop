@@ -326,7 +326,13 @@ class Game extends \Bga\GameFramework\Table
 
     public function getMiddleCards(): array
     {
-        return array_values($this->cards->getCardsInLocation('middle', null, 'card_location_arg'));
+        $cards = array_values($this->cards->getCardsInLocation('middle'));
+        usort(
+            $cards,
+            fn(array $a, array $b) => ((int) $a['location_arg']) <=> ((int) $b['location_arg'])
+        );
+
+        return $cards;
     }
 
     public function getPlayerTableCards(int $playerId): array
@@ -464,9 +470,7 @@ class Game extends \Bga\GameFramework\Table
         bool $fromBlindFailure = false,
     ): array {
         $rank = Cards::cardRank($playedCards[0]);
-        $playCount = count($playedCards);
         $cardIds = array_map(fn($c) => (int) $c['id'], $playedCards);
-        $effectiveTopCount = ($topGroupBefore['rank'] === $rank) ? $topGroupBefore['count'] : 0;
 
         if ($notifyPlay) {
             $labels = array_map(fn($c) => Cards::formatCardLabel($c), $playedCards);
@@ -487,7 +491,12 @@ class Game extends \Bga\GameFramework\Table
             return ['stay' => true, 'next' => false];
         }
 
-        if (Cards::causesScoop($rank, $playCount, $effectiveTopCount)) {
+        // Scoop if tens were played, or the contiguous top group is now exactly 4
+        $topAfter = Cards::getTopGroup($this->getMiddleCards());
+        $scooped = ($rank === '10')
+            || ($topAfter['rank'] === $rank && $topAfter['count'] === 4);
+
+        if ($scooped) {
             $this->scoopMiddle($playerId);
 
             return ['stay' => true, 'next' => false];

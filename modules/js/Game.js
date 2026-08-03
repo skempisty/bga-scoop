@@ -209,6 +209,7 @@ export class Game {
                         <div id="scoop-middle-label">${_('Pile')}</div>
                         <div id="scoop-middle-pile"></div>
                     </div>
+                    <div id="scoop-banner-overlay" class="scoop-banner-hidden" aria-hidden="true"></div>
                 </div>
                 <div id="scoop-hand-zone">
                     <div id="scoop-hand-label">${_('Your hand')}</div>
@@ -631,11 +632,31 @@ export class Game {
     }
 
     showScoopFlash() {
-        const pile = document.getElementById('scoop-middle-pile');
-        if (!pile) {
+        const overlay = document.getElementById('scoop-banner-overlay');
+        if (!overlay) {
             return;
         }
-        pile.classList.add('scoop-scoop-flash');
-        setTimeout(() => pile.classList.remove('scoop-scoop-flash'), 600);
+
+        if (this._scoopFlashTimer) {
+            clearTimeout(this._scoopFlashTimer);
+        }
+
+        overlay.innerHTML = `
+            <div class="scoop-banner-backdrop"></div>
+            <div class="scoop-banner-text" role="status">${_('SCOOP!')}</div>
+        `;
+        overlay.classList.remove('scoop-banner-hidden');
+
+        // Retrigger CSS animations if scoop happens twice quickly
+        const text = overlay.querySelector('.scoop-banner-text');
+        const backdrop = overlay.querySelector('.scoop-banner-backdrop');
+        void text.offsetWidth;
+        void backdrop.offsetWidth;
+
+        this._scoopFlashTimer = setTimeout(() => {
+            overlay.classList.add('scoop-banner-hidden');
+            overlay.innerHTML = '';
+            this._scoopFlashTimer = null;
+        }, 1100);
     }
 }
