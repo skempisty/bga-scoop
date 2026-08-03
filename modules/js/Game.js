@@ -773,6 +773,10 @@ export class Game {
         this.updateScores();
     }
 
+    async notif_roundScore(args) {
+        // Log-only: round scoring breakdown appears in the game log.
+    }
+
     showScoopFlash() {
         const overlay = document.getElementById('scoop-banner-overlay');
         if (!overlay) {

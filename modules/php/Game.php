@@ -290,12 +290,15 @@ class Game extends \Bga\GameFramework\Table
         $playerIds = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
 
         foreach ($playerIds as $playerId) {
-            $remaining = array_merge(
+            $remaining = array_values(array_merge(
                 $this->cards->getCardsInLocation('hand', $playerId),
                 $this->getPlayerTableCards($playerId),
-            );
+            ));
             $points = Cards::scoreCards($remaining);
-            $roundScores[$playerId] = $points;
+            $roundScores[$playerId] = [
+                'points' => $points,
+                'cards' => $remaining,
+            ];
 
             if ($points > 0) {
                 $this->bga->playerScore->inc($playerId, $points);
@@ -304,11 +307,33 @@ class Game extends \Bga\GameFramework\Table
 
         $this->bga->notify->all('roundEnded', clienttranslate('Round ${round} ends'), [
             'round' => (int) $this->getGameStateValue('round_number'),
-            'roundScores' => $roundScores,
+            'roundScores' => array_map(fn(array $entry) => $entry['points'], $roundScores),
             'players' => $this->getCollectionFromDb(
                 "SELECT `player_id` AS `id`, `player_score` AS `score` FROM `player`"
             ),
         ]);
+
+        foreach ($roundScores as $playerId => $entry) {
+            $points = $entry['points'];
+            if ($points === 0) {
+                $this->bga->notify->all('roundScore', clienttranslate('${player_name} scores 0'), [
+                    'player_id' => (int) $playerId,
+                    'points' => 0,
+                ]);
+                continue;
+            }
+
+            $labels = array_map(fn(array $card) => Cards::formatCardLabel($card), $entry['cards']);
+            $this->bga->notify->all(
+                'roundScore',
+                clienttranslate('${player_name} scores ${points}: ${cards_label}'),
+                [
+                    'player_id' => (int) $playerId,
+                    'points' => $points,
+                    'cards_label' => implode(', ', $labels),
+                ]
+            );
+        }
 
         $round = (int) $this->getGameStateValue('round_number');
         if ($round >= count($playerIds)) {
