@@ -43,7 +43,7 @@ Run these in BGA Studio after deploying. Start a fresh table for each major scen
 ## Scoring & rounds
 
 - [ ] Round scores: A=1, 2–9 face, J/Q/K=10, 10=20 on remaining cards
-- [ ] `player_score` decreases (negative penalty points)
+- [ ] `player_score` increases by penalty points (positive totals)
 - [ ] Starter rotates each round
 - [ ] After N rounds (N = player count) → game end, lowest score wins
 

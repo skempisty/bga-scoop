@@ -110,111 +110,67 @@
     display: flex;
     gap: 4px;
     justify-content: center;
+    align-items: center;
 }
 
 .scoop-slot {
     width: 56px;
     height: 78px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
 }
 
 .scoop-slot-empty {
     border: 1px dashed rgba(255, 255, 255, 0.15);
     border-radius: 6px;
+    box-sizing: border-box;
 }
 
 .scoop-card {
+    box-sizing: border-box;
     width: 56px;
     height: 78px;
     border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
     position: relative;
     cursor: default;
     user-select: none;
     transition: transform 0.12s ease, box-shadow 0.12s ease;
+    overflow: hidden;
 }
 
 .scoop-card-face {
-    background: #faf6ee url('img/card_face.png') center / cover no-repeat;
+    border: none;
+    background-color: #ffffff;
+    /* Borderless art — safe to inset without a printed frame line */
+    background-size: 88% 90%;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .scoop-card-back {
-    background:
-        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18), transparent 45%),
-        linear-gradient(145deg, #3b82f6 0%, #1d4ed8 45%, #1e3a8a 100%);
-    border: 2px solid #93c5fd;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.55), inset 0 0 0 3px rgba(30, 58, 138, 0.55);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    background-color: #1a4a9c;
+    background-image: url('img/card_back.png');
+    /* Fill the same outer box as face-up cards (faces use white inset padding) */
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
+.scoop-card-back::before,
 .scoop-card-back::after {
-    content: 'SCOOP';
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: bold;
-    letter-spacing: 0.08em;
-    color: rgba(219, 234, 254, 0.95);
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-}
-
-.scoop-card-corner {
-    position: absolute;
-    font-size: 10px;
-    line-height: 1.1;
-    font-weight: bold;
-}
-
-.scoop-card-corner span {
-    display: block;
-    font-size: 11px;
-}
-
-.scoop-card-tl {
-    top: 3px;
-    left: 4px;
-}
-
-.scoop-card-br {
-    bottom: 3px;
-    right: 4px;
-    transform: rotate(180deg);
-}
-
-.scoop-card-center {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    font-size: 18px;
-    font-weight: bold;
-    text-align: center;
-    line-height: 1;
-}
-
-.scoop-card-center span {
-    display: block;
-    font-size: 16px;
+    content: none;
 }
 
 #scoop-middle-pile .scoop-card {
+    box-sizing: border-box;
     width: 72px;
     height: 100px;
-}
-
-#scoop-middle-pile .scoop-card-center {
-    font-size: 22px;
-}
-
-#scoop-middle-pile .scoop-card-corner {
-    font-size: 12px;
-}
-
-/* Buried pile cards: only show left rank strip */
-#scoop-middle-pile .scoop-pile-card:not(:last-child) .scoop-card-center,
-#scoop-middle-pile .scoop-pile-card:not(:last-child) .scoop-card-br {
-    display: none;
 }
 
 .scoop-card[data-location="hand"],
@@ -230,6 +186,11 @@
     transform: translateY(-10px);
     box-shadow: 0 8px 14px rgba(201, 162, 39, 0.55);
     outline: 2px solid #c9a227;
+}
+
+.scoop-matchable {
+    outline: 2px dashed rgba(201, 162, 39, 0.75);
+    cursor: pointer;
 }
 
 .scoop-blind-selected {
@@ -378,6 +339,10 @@
     .scoop-slot {
         width: 48px;
         height: 68px;
+    }
+
+    .scoop-slot-empty {
+        box-sizing: border-box;
     }
 
     #scoop-middle-pile .scoop-card {

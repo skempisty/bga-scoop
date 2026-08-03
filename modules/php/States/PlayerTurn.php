@@ -20,6 +20,8 @@ class PlayerTurn extends GameState
         parent::__construct($game,
             id: 10,
             type: StateType::ACTIVE_PLAYER,
+            description: clienttranslate('${actplayer} must play cards or pick up the pile'),
+            descriptionMyTurn: clienttranslate('${you} must play cards or pick up the pile'),
         );
     }
 
@@ -79,13 +81,9 @@ class PlayerTurn extends GameState
         return self::class;
     }
 
-    /**
-     * @param int[] $extra_card_ids
-     */
     #[PossibleAction]
     public function actPlayBlind(
         int $slot,
-        #[IntArrayParam(min: 0, max: 3)] array $extra_card_ids = [],
         int $activePlayerId = 0,
         array $args = [],
     ) {
@@ -100,59 +98,49 @@ class PlayerTurn extends GameState
         }
 
         $revealedRank = Cards::cardRank($downCard);
-        $extra_card_ids = array_values(array_unique(array_map('intval', $extra_card_ids)));
-
-        $extraCards = [];
-        foreach ($extra_card_ids as $cardId) {
-            $card = $this->game->getCardFromPlayerSources($activePlayerId, $cardId);
-            if ($card === null) {
-                throw new UserException(clienttranslate('Invalid extra card selection'));
-            }
-            if (Cards::cardRank($card) !== $revealedRank) {
-                throw new UserException(clienttranslate('Extra cards must match the revealed rank'));
-            }
-            $extraCards[] = $card;
-        }
-
-        $allCards = array_merge([$downCard], $extraCards);
         $middle = $this->game->getMiddleCards();
         $topGroupBefore = Cards::getTopGroup($middle);
         $middleEmpty = $middle === [];
         $illegalBlind = !Cards::canPlayRankOnMiddle($revealedRank, $topGroupBefore['rank'], $middleEmpty);
 
-        $effectiveTopCount = ($topGroupBefore['rank'] === $revealedRank) ? $topGroupBefore['count'] : 0;
-        $availableSameRank = 1 + $this->game->countAvailableCardsOfRank($activePlayerId, $revealedRank, true);
-        $maxPlay = Cards::maxPlayCountWithoutOverComplete($effectiveTopCount, $availableSameRank);
-        if (count($allCards) > $maxPlay) {
-            throw new UserException(clienttranslate('You cannot play more than four of the same rank on the pile'));
-        }
-
         $this->game->cards->insertCardOnExtremePosition((int) $downCard['id'], 'middle', true);
-        foreach ($extraCards as $card) {
-            $this->game->cards->insertCardOnExtremePosition((int) $card['id'], 'middle', true);
-        }
 
         $this->bga->notify->all('blindPlayed', clienttranslate('${player_name} plays a face-down card: ${cards_label}'), [
             'player_id' => $activePlayerId,
             'slot' => $slot,
-            'cards' => array_map([$this->game, 'enrichCard'], $allCards),
-            'cards_label' => implode(', ', array_map(fn($c) => Cards::formatCardLabel($c), $allCards)),
+            'cards' => [$this->game->enrichCard($downCard)],
+            'cards_label' => Cards::formatCardLabel($downCard),
             'illegal' => $illegalBlind,
             'cardCounts' => $this->game->getPublicCardCounts(),
             'handCounts' => $this->game->getPublicHandCounts(),
             'tableSlots' => $this->game->getPublicTableSlots(),
         ]);
 
-        $result = $this->game->finalizePlay(
-            $activePlayerId,
-            $allCards,
-            $topGroupBefore,
-            notifyPlay: false,
-            fromBlindFailure: $illegalBlind,
-        );
+        if ($illegalBlind) {
+            $this->game->pickUpMiddleToPlayer($activePlayerId);
 
-        if ($result['stay']) {
             return self::class;
+        }
+
+        // Scoop if tens, or contiguous top group is now exactly 4
+        $topAfter = Cards::getTopGroup($this->game->getMiddleCards());
+        $scooped = ($revealedRank === '10')
+            || ($topAfter['rank'] === $revealedRank && $topAfter['count'] === 4);
+
+        if ($scooped) {
+            $this->game->scoopMiddle($activePlayerId);
+
+            return self::class;
+        }
+
+        // Optionally add matching hand / face-up cards of the revealed rank
+        $matchInfo = $this->game->getMatchingAddInfo($activePlayerId);
+        if ($matchInfo['maxAdd'] > 0) {
+            return AddMatching::class;
+        }
+
+        if ($this->game->playerHasNoCards($activePlayerId)) {
+            $this->game->handlePlayerWentOut($activePlayerId);
         }
 
         return NextPlayer::class;

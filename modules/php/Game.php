@@ -298,7 +298,7 @@ class Game extends \Bga\GameFramework\Table
             $roundScores[$playerId] = $points;
 
             if ($points > 0) {
-                $this->bga->playerScore->inc($playerId, -$points);
+                $this->bga->playerScore->inc($playerId, $points);
             }
         }
 
@@ -642,6 +642,59 @@ class Game extends \Bga\GameFramework\Table
         }
 
         return $count;
+    }
+
+    /**
+     * Cards the active player may still add after a revealed face-down play.
+     *
+     * @return array{rank: string, topCount: int, maxAdd: int, cardIds: int[], cards: array}
+     */
+    public function getMatchingAddInfo(int $playerId): array
+    {
+        $topGroup = Cards::getTopGroup($this->getMiddleCards());
+        $rank = $topGroup['rank'] ?? '';
+        $topCount = (int) ($topGroup['count'] ?? 0);
+
+        if ($rank === '' || $topCount < 1) {
+            return [
+                'rank' => $rank,
+                'topCount' => $topCount,
+                'maxAdd' => 0,
+                'cardIds' => [],
+                'cards' => [],
+            ];
+        }
+
+        $cards = [];
+        $cardIds = [];
+
+        foreach ($this->cards->getCardsInLocation('hand', $playerId) as $card) {
+            if (Cards::cardRank($card) === $rank) {
+                $enriched = $this->enrichCard($card);
+                $cards[] = $enriched;
+                $cardIds[] = (int) $card['id'];
+            }
+        }
+
+        for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
+            $arg = Cards::slotArg($playerId, $slot);
+            $up = array_values($this->cards->getCardsInLocation('table_up', $arg));
+            if (count($up) > 0 && Cards::cardRank($up[0]) === $rank) {
+                $enriched = $this->enrichCard($up[0]);
+                $cards[] = $enriched;
+                $cardIds[] = (int) $up[0]['id'];
+            }
+        }
+
+        $maxAdd = Cards::maxPlayCountWithoutOverComplete($topCount, count($cardIds));
+
+        return [
+            'rank' => $rank,
+            'topCount' => $topCount,
+            'maxAdd' => $maxAdd,
+            'cardIds' => $cardIds,
+            'cards' => $cards,
+        ];
     }
 
     public function getDownCard(int $playerId, int $slot): ?array

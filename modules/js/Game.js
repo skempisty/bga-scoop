@@ -3,7 +3,7 @@
  */
 
 const SUIT_SYMBOLS = ['♠', '♥', '♦', '♣'];
-const SUIT_COLORS = ['black', 'red', 'red', 'black'];
+const SUIT_CODES = ['S', 'H', 'D', 'C'];
 const RANK_ORDER = ['10', 'K', 'Q', 'J', '9', '8', '7', '6', '5', '4', '3', '2', 'A'];
 
 class PlayerTurn {
@@ -69,7 +69,7 @@ class PlayerTurn {
 
         if (this.selectedBlindSlot !== null) {
             this.bga.statusBar.setTitle(
-                _('${you} selected a face-down card — optionally add matching hand/face-up cards, then Play')
+                _('${you} selected a face-down card — Play to reveal it')
             );
         } else if (this.selectedCardIds.size > 0) {
             this.bga.statusBar.setTitle(_('${you} — play the selected cards, or pick up'));
@@ -94,39 +94,29 @@ class PlayerTurn {
             return;
         }
 
-        // After selecting a face-down, hand/face-up clicks are optional extras
-        // (must match the revealed rank — validated on the server).
+        // Face-down selection is exclusive — matching extras come after reveal.
         if (this.selectedBlindSlot !== null) {
-            if (source !== 'hand' && source !== 'table_up') {
-                return;
-            }
-            if (this.selectedCardIds.has(cardId)) {
-                this.selectedCardIds.delete(cardId);
-            } else {
-                this.selectedCardIds.add(cardId);
-            }
-        } else {
-            // Selecting known cards clears any face-down selection
             this.selectedBlindSlot = null;
-            const card = this.game.findCard(cardId);
-            if (!card) {
-                return;
-            }
+        }
 
-            if (this.selectedCardIds.size === 0) {
-                this.selectedCardIds.add(cardId);
-            } else {
-                const first = this.game.findCard([...this.selectedCardIds][0]);
-                if (first && first.type === card.type) {
-                    if (this.selectedCardIds.has(cardId)) {
-                        this.selectedCardIds.delete(cardId);
-                    } else {
-                        this.selectedCardIds.add(cardId);
-                    }
+        const card = this.game.findCard(cardId);
+        if (!card) {
+            return;
+        }
+
+        if (this.selectedCardIds.size === 0) {
+            this.selectedCardIds.add(cardId);
+        } else {
+            const first = this.game.findCard([...this.selectedCardIds][0]);
+            if (first && first.type === card.type) {
+                if (this.selectedCardIds.has(cardId)) {
+                    this.selectedCardIds.delete(cardId);
                 } else {
-                    this.selectedCardIds.clear();
                     this.selectedCardIds.add(cardId);
                 }
+            } else {
+                this.selectedCardIds.clear();
+                this.selectedCardIds.add(cardId);
             }
         }
 
@@ -148,7 +138,7 @@ class PlayerTurn {
             this.selectedBlindSlot = null;
             this.selectedCardIds.clear();
         } else {
-            // One face-down only; extras from hand/face-up can be added after
+            // Reveal first; matching extras are offered after the card is shown
             this.selectedBlindSlot = slot;
             this.selectedCardIds.clear();
         }
@@ -161,10 +151,8 @@ class PlayerTurn {
 
     onPlaySelected() {
         if (this.selectedBlindSlot !== null) {
-            // Face-down + any selected hand/face-up extras (must match revealed rank)
             this.bga.actions.performAction('actPlayBlind', {
                 slot: this.selectedBlindSlot,
-                extra_card_ids: this.selectedCardIds.size > 0 ? [...this.selectedCardIds] : [],
             });
             return;
         }
@@ -181,19 +169,157 @@ class PlayerTurn {
     }
 }
 
+class AddMatching {
+    constructor(game, bga) {
+        this.game = game;
+        this.bga = bga;
+        this.selectedCardIds = new Set();
+        this.isActive = false;
+    }
+
+    onEnteringState(args, isCurrentPlayerActive) {
+        this.selectedCardIds.clear();
+        this.isActive = !!isCurrentPlayerActive;
+        this.args = args;
+        this.game.renderBoard();
+        this.game.updateSelectionUi();
+
+        const rank = args.revealedRank || '?';
+        if (isCurrentPlayerActive) {
+            this.bga.statusBar.setTitle(
+                _('${you} revealed ${rank} — add matching cards or continue')
+                    .replace('${rank}', rank)
+            );
+        } else {
+            this.bga.statusBar.setTitle(
+                _('${actplayer} may add matching ${rank}s')
+                    .replace('${rank}', rank)
+            );
+        }
+
+        this.bga.statusBar.removeActionButtons();
+        if (isCurrentPlayerActive) {
+            this.bga.statusBar.addActionButton(_('Add selected'), () => this.onAddSelected(), {
+                color: 'primary',
+                id: 'scoop-btn-add-matching',
+                disabled: true,
+            });
+            this.bga.statusBar.addActionButton(_('Continue'), () => this.onDone(), {
+                color: 'secondary',
+            });
+            this.bga.statusBar.addActionButton(_('Clear'), () => this.clearSelection(), {
+                color: 'secondary',
+            });
+            this.updateActionButtons();
+        }
+    }
+
+    onLeavingState() {
+        this.isActive = false;
+        this.selectedCardIds.clear();
+        this.bga.statusBar.removeActionButtons();
+    }
+
+    updateActionButtons() {
+        const addBtn = document.getElementById('scoop-btn-add-matching');
+        if (addBtn) {
+            addBtn.disabled = !this.isActive || this.selectedCardIds.size === 0;
+        }
+
+        if (!this.isActive || !this.args) {
+            return;
+        }
+
+        const rank = this.args.revealedRank || '?';
+        if (this.selectedCardIds.size > 0) {
+            this.bga.statusBar.setTitle(
+                _('${you} — add the selected ${rank}s, or Continue without adding')
+                    .replace('${rank}', rank)
+            );
+        } else {
+            this.bga.statusBar.setTitle(
+                _('${you} revealed ${rank} — add matching cards or continue')
+                    .replace('${rank}', rank)
+            );
+        }
+    }
+
+    clearSelection() {
+        this.selectedCardIds.clear();
+        this.game.updateSelectionUi();
+        this.updateActionButtons();
+    }
+
+    onCardClick(cardId, source) {
+        if (!this.isActive) {
+            return;
+        }
+        if (source !== 'hand' && source !== 'table_up') {
+            return;
+        }
+
+        const allowed = this.args?.matchableCardIds || [];
+        if (!allowed.map(Number).includes(Number(cardId))) {
+            return;
+        }
+
+        const maxAdd = Number(this.args?.maxAdd || 0);
+        if (this.selectedCardIds.has(cardId)) {
+            this.selectedCardIds.delete(cardId);
+        } else if (this.selectedCardIds.size < maxAdd) {
+            this.selectedCardIds.add(cardId);
+        }
+
+        this.game.updateSelectionUi();
+        this.updateActionButtons();
+    }
+
+    onAddSelected() {
+        const cardIds = [...this.selectedCardIds];
+        if (cardIds.length === 0) {
+            return;
+        }
+        this.bga.actions.performAction('actAddMatching', { card_ids: cardIds });
+    }
+
+    onDone() {
+        this.bga.actions.performAction('actDoneMatching', {});
+    }
+}
+
 export class Game {
     constructor(bga) {
         this.bga = bga;
         this.playerTurn = new PlayerTurn(this, bga);
+        this.addMatching = new AddMatching(this, bga);
         this.bga.states.register('PlayerTurn', this.playerTurn);
+        this.bga.states.register('AddMatching', this.addMatching);
 
         this.gamedatas = null;
         this.board = null;
         this.currentPlayerId = null;
     }
 
+    getSelectionController() {
+        if (this.addMatching?.isActive) {
+            return this.addMatching;
+        }
+        return this.playerTurn;
+    }
+
     getCurrentPlayerId() {
         return this.bga.gameui?.player_id ?? this.bga.player_id ?? this.currentPlayerId;
+    }
+
+    onPlayableCardClick(cardId, source) {
+        this.getSelectionController().onCardClick(cardId, source);
+    }
+
+    onBlindSlotClick(slot) {
+        if (this.addMatching?.isActive) {
+            return;
+        }
+        this.playerTurn.onBlindSlotClick(slot);
     }
 
     setup(gamedatas) {
@@ -445,14 +571,14 @@ export class Game {
                 if (slot.up) {
                     const cardEl = this.createCardElement(slot.up, 'table_up');
                     if (isMe) {
-                        cardEl.addEventListener('click', () => this.playerTurn.onCardClick(slot.up.id, 'table_up'));
+                        cardEl.addEventListener('click', () => this.onPlayableCardClick(slot.up.id, 'table_up'));
                     }
                     slotEl.appendChild(cardEl);
                 } else if (slot.hasDown) {
                     const back = this.createCardBackElement();
                     back.classList.add('scoop-blind-target');
                     if (isMe) {
-                        back.addEventListener('click', () => this.playerTurn.onBlindSlotClick(slot.slot));
+                        back.addEventListener('click', () => this.onBlindSlotClick(slot.slot));
                     }
                     slotEl.appendChild(back);
                 } else {
@@ -476,7 +602,7 @@ export class Game {
         const sorted = this.sortHand(this.board.myHand);
         sorted.forEach(card => {
             const el = this.createCardElement(card, 'hand');
-            el.addEventListener('click', () => this.playerTurn.onCardClick(card.id, 'hand'));
+            el.addEventListener('click', () => this.onPlayableCardClick(card.id, 'hand'));
             hand.appendChild(el);
         });
     }
@@ -486,16 +612,18 @@ export class Game {
         el.className = 'scoop-card scoop-card-face';
         el.dataset.cardId = card.id;
         el.dataset.location = location;
+        el.dataset.rank = card.type;
 
         const suitIndex = card.suitIndex ?? 0;
-        const color = SUIT_COLORS[suitIndex];
-        const symbol = SUIT_SYMBOLS[suitIndex];
+        const suitCode = SUIT_CODES[suitIndex] || 'S';
+        const rank = String(card.type);
+        const themeUrl = (typeof g_gamethemeurl !== 'undefined' ? g_gamethemeurl : '');
+        const artUrl = `${themeUrl}img/card-${suitCode}-${rank}.png`;
 
-        el.innerHTML = `
-            <div class="scoop-card-corner scoop-card-tl" style="color:${color}">${card.type}<span>${symbol}</span></div>
-            <div class="scoop-card-center" style="color:${color}">${card.type}<span>${symbol}</span></div>
-            <div class="scoop-card-corner scoop-card-br" style="color:${color}">${card.type}<span>${symbol}</span></div>
-        `;
+        el.classList.add(`scoop-suit-${suitIndex}`);
+        el.style.backgroundImage = `url('${artUrl}')`;
+        el.setAttribute('title', `${rank}${SUIT_SYMBOLS[suitIndex] || ''}`);
+        el.setAttribute('aria-label', `${rank}${SUIT_SYMBOLS[suitIndex] || ''}`);
 
         return el;
     }
@@ -509,19 +637,33 @@ export class Game {
     updateSelectionUi() {
         document.querySelectorAll('.scoop-card').forEach(el => {
             el.classList.remove('scoop-selected');
+            el.classList.remove('scoop-matchable');
         });
         document.querySelectorAll('.scoop-blind-target').forEach(el => {
             el.classList.remove('scoop-blind-selected');
         });
 
-        this.playerTurn.selectedCardIds.forEach(id => {
-            const el = document.querySelector(`.scoop-card[data-card-id="${id}"]`);
-            if (el) {
-                el.classList.add('scoop-selected');
-            }
-        });
+        const controller = this.getSelectionController();
+        const selected = controller?.selectedCardIds;
+        if (selected) {
+            selected.forEach(id => {
+                const el = document.querySelector(`.scoop-card[data-card-id="${id}"]`);
+                if (el) {
+                    el.classList.add('scoop-selected');
+                }
+            });
+        }
 
-        if (this.playerTurn.selectedBlindSlot !== null) {
+        if (this.addMatching?.isActive && this.addMatching.args?.matchableCardIds) {
+            this.addMatching.args.matchableCardIds.forEach(id => {
+                const el = document.querySelector(`.scoop-card[data-card-id="${id}"]`);
+                if (el && !el.classList.contains('scoop-selected')) {
+                    el.classList.add('scoop-matchable');
+                }
+            });
+        }
+
+        if (this.playerTurn.selectedBlindSlot !== null && this.playerTurn.isActive) {
             const zone = document.querySelector('.scoop-player-me');
             if (zone) {
                 const slotEl = zone.querySelector(`.scoop-slot[data-slot="${this.playerTurn.selectedBlindSlot}"]`);

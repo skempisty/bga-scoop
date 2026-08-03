@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Bga\Games\Scoop\States;
 
 use Bga\GameFramework\StateType;
+use Bga\GameFramework\GameResult\GameResult;
+use Bga\GameFramework\GameResult\Player;
 use Bga\Games\Scoop\Game;
-
-const ST_END_GAME = 99;
 
 class EndScore extends \Bga\GameFramework\States\GameState
 {
-
     function __construct(
         protected Game $game,
     ) {
@@ -22,13 +21,21 @@ class EndScore extends \Bga\GameFramework\States\GameState
     }
 
     /**
-     * Game state action, example content.
-     *
-     * The onEnteringState method of state `EndScore` is called just before the end of the game.
+     * Final ranking: lowest penalty score wins.
      */
-    public function onEnteringState() {
-        // Here, we would compute scores if they are not updated live, and compute average statistics
+    public function onEnteringState()
+    {
+        $playersDb = $this->game->getCollectionFromDb('SELECT * FROM `player`');
+        $players = Player::fromPlayersDb($playersDb);
 
-        return ST_END_GAME;
+        // Migrate any in-progress tables that still used negative scores
+        if ($this->bga->playerScore->getMin() < 0) {
+            foreach ($players as &$player) {
+                $player->score = -$player->score;
+            }
+            unset($player);
+        }
+
+        return GameResult::individualRanking($players, reverseScore: true);
     }
 }
