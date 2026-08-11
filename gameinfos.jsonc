@@ -14,8 +14,8 @@
     // Url of game publisher website
     "publisher_website": "",
 
-    // Board Game Geek ID of the publisher
-    "publisher_bgg_id": 0,
+    // Board Game Geek ID of the publisher (4 indicates self-published)
+    "publisher_bgg_id": 4,
 
     // Board game geek ID of the game
     "bgg_id": 0,
