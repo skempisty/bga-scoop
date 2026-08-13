@@ -529,7 +529,10 @@ class Game extends \Bga\GameFramework\Table
         if ($scooped) {
             $this->scoopMiddle($playerId);
 
-            return ['stay' => true, 'next' => false];
+            // Extra play only if the player still has cards; otherwise they would soft-lock.
+            if (!$this->playerHasNoCards($playerId)) {
+                return ['stay' => true, 'next' => false];
+            }
         }
 
         if ($this->playerHasNoCards($playerId)) {

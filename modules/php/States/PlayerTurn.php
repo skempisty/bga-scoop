@@ -130,6 +130,12 @@ class PlayerTurn extends GameState
         if ($scooped) {
             $this->game->scoopMiddle($activePlayerId);
 
+            if ($this->game->playerHasNoCards($activePlayerId)) {
+                $this->game->handlePlayerWentOut($activePlayerId);
+
+                return NextPlayer::class;
+            }
+
             return self::class;
         }
 
