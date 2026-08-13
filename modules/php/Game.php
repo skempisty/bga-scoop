@@ -60,7 +60,7 @@ class Game extends \Bga\GameFramework\Table
     protected function getAllDatas(int $currentPlayerId): array
     {
         $players = $this->getCollectionFromDb(
-            "SELECT `player_id` AS `id`, `player_score` AS `score`, `player_name` AS `name`, `player_color` AS `color` FROM `player`"
+            "SELECT `player_id` AS `id`, `player_score` AS `score`, `player_name` AS `name`, `player_color` AS `color`, `player_no` FROM `player`"
         );
 
         $playerIds = array_map('intval', array_keys($players));

@@ -13,6 +13,7 @@
     border-radius: 8px;
     font-family: 'ScoopDisplay', Georgia, 'Times New Roman', serif;
     color: #f5f0e6;
+    overflow-x: hidden;
 }
 
 #scoop-round-banner {
@@ -26,21 +27,40 @@
 
 #scoop-arena {
     position: relative;
+    box-sizing: border-box;
     width: 100%;
-    height: 520px;
+    min-height: 520px;
     margin: 0 auto 12px;
+    padding: 8px;
+    overflow-x: hidden;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+        "tl top tr"
+        "left pile right"
+        "bl bottom br";
+    gap: 8px;
+    align-content: space-between;
 }
 
 #scoop-middle-zone {
-    position: absolute;
-    left: 50%;
-    top: 42%;
-    transform: translate(-50%, -50%);
+    grid-area: pile;
     z-index: 5;
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 90%;
+    justify-content: center;
+    justify-self: stretch;
+    align-self: center;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+}
+
+#scoop-arena[data-player-count="2"] #scoop-middle-zone,
+#scoop-arena[data-player-count="3"] #scoop-middle-zone {
+    grid-column: 1 / -1;
 }
 
 #scoop-middle-label,
@@ -77,14 +97,32 @@
 }
 
 .scoop-player-zone {
-    position: absolute;
+    position: relative;
+    box-sizing: border-box;
     background: rgba(0, 0, 0, 0.35);
     border-radius: 8px;
     padding: 8px 10px;
-    min-width: 200px;
-    max-width: 280px;
-    transform: translate(-50%, -50%);
+    width: max-content;
+    max-width: 100%;
+    min-width: 0;
     z-index: 2;
+}
+
+.scoop-seat-bottom {
+    grid-area: bottom;
+    grid-column: 1 / -1;
+    justify-self: center;
+    align-self: end;
+}
+.scoop-seat-top { grid-area: top; justify-self: center; align-self: start; }
+.scoop-seat-left { grid-area: left; justify-self: start; align-self: center; }
+.scoop-seat-right { grid-area: right; justify-self: end; align-self: center; }
+.scoop-seat-tl { grid-area: tl; justify-self: start; align-self: start; }
+.scoop-seat-tr { grid-area: tr; justify-self: end; align-self: start; }
+
+#scoop-arena[data-player-count="2"] .scoop-seat-top,
+#scoop-arena[data-player-count="4"] .scoop-seat-top {
+    grid-column: 1 / -1;
 }
 
 .scoop-player-me {
@@ -111,6 +149,7 @@
     gap: 4px;
     justify-content: center;
     align-items: center;
+    max-width: 100%;
 }
 
 .scoop-slot {
@@ -119,7 +158,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
+    flex: 0 1 56px;
+    min-width: 0;
+}
+
+.scoop-slot .scoop-card {
+    width: 100%;
+    height: 100%;
 }
 
 .scoop-slot-empty {
@@ -326,12 +371,13 @@
 
 @media (max-width: 740px) {
     #scoop-arena {
-        height: 520px;
+        min-height: 520px;
+        gap: 6px;
+        padding: 6px;
     }
 
     .scoop-player-zone {
-        min-width: 160px;
-        max-width: 200px;
+        max-width: 100%;
         padding: 6px;
     }
 
@@ -339,6 +385,7 @@
     .scoop-slot {
         width: 48px;
         height: 68px;
+        flex-basis: 48px;
     }
 
     .scoop-slot-empty {

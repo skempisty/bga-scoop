@@ -5,6 +5,8 @@
 const SUIT_SYMBOLS = ['♠', '♥', '♦', '♣'];
 const SUIT_CODES = ['S', 'H', 'D', 'C'];
 const RANK_ORDER = ['10', 'K', 'Q', 'J', '9', '8', '7', '6', '5', '4', '3', '2', 'A'];
+const PILE_PEEK = 22;
+const PILE_ROW_GAP = 8;
 
 class PlayerTurn {
     constructor(game, bga) {
@@ -351,7 +353,25 @@ export class Game {
         });
 
         this.renderBoard();
+        this.observeArenaResize();
         this.setupNotifications();
+    }
+
+    observeArenaResize() {
+        const arena = document.getElementById('scoop-arena');
+        if (!arena || typeof ResizeObserver === 'undefined') {
+            return;
+        }
+        this._arenaResizeObserver = new ResizeObserver(() => {
+            if (this._renderingMiddle || this._pileResizeRaf) {
+                return;
+            }
+            this._pileResizeRaf = requestAnimationFrame(() => {
+                this._pileResizeRaf = null;
+                this.renderMiddle();
+            });
+        });
+        this._arenaResizeObserver.observe(arena);
     }
 
     cloneBoardFromGamedatas(gamedatas) {
@@ -375,6 +395,7 @@ export class Game {
             cardCounts,
             tableSlots: JSON.parse(JSON.stringify(gamedatas.tableSlots || {})),
             players: { ...gamedatas.players },
+            playerorder: (gamedatas.playerorder || []).map(Number),
         };
     }
 
@@ -463,8 +484,8 @@ export class Game {
             banner.textContent = text;
         }
 
-        this.renderMiddle();
         this.renderPlayers();
+        this.renderMiddle();
         this.renderHand();
         this.updateScores();
         this.updateSelectionUi();
@@ -480,43 +501,92 @@ export class Game {
     }
 
     renderMiddle() {
+        if (!this.board || this._renderingMiddle) {
+            return;
+        }
         const pile = document.getElementById('scoop-middle-pile');
         if (!pile) {
             return;
         }
-        pile.innerHTML = '';
 
-        if (this.board.middle.length === 0) {
-            pile.style.width = '72px';
-            pile.innerHTML = `<div class="scoop-empty-pile">${_('Empty')}</div>`;
-            return;
+        this._renderingMiddle = true;
+        try {
+            pile.innerHTML = '';
+
+            if (this.board.middle.length === 0) {
+                pile.style.width = '72px';
+                pile.style.height = '100px';
+                pile.innerHTML = `<div class="scoop-empty-pile">${_('Empty')}</div>`;
+                return;
+            }
+
+            this.board.middle.forEach((card, index) => {
+                const el = this.createCardElement(card, 'middle');
+                el.classList.add('scoop-pile-card');
+                el.style.zIndex = String(index + 1);
+                pile.appendChild(el);
+            });
+
+            const cardEl = pile.querySelector('.scoop-card');
+            const cardWidth = cardEl?.offsetWidth || 72;
+            const cardHeight = cardEl?.offsetHeight || 100;
+            const zone = document.getElementById('scoop-middle-zone');
+            const available = Math.max(zone?.clientWidth || 0, cardWidth);
+            const n = this.board.middle.length;
+            const cardsPerRow = Math.max(1, 1 + Math.floor((available - cardWidth) / PILE_PEEK));
+            const rows = Math.ceil(n / cardsPerRow);
+            const cols = Math.min(n, cardsPerRow);
+
+            [...pile.children].forEach((el, index) => {
+                const row = Math.floor(index / cardsPerRow);
+                const col = index % cardsPerRow;
+                el.style.left = `${col * PILE_PEEK}px`;
+                el.style.top = `${row * (cardHeight + PILE_ROW_GAP)}px`;
+            });
+
+            pile.style.width = `${cardWidth + Math.max(0, cols - 1) * PILE_PEEK}px`;
+            pile.style.height = `${rows * cardHeight + Math.max(0, rows - 1) * PILE_ROW_GAP}px`;
+        } finally {
+            this._renderingMiddle = false;
         }
-
-        const peek = 22;
-        const cardWidth = 72;
-        this.board.middle.forEach((card, index) => {
-            const el = this.createCardElement(card, 'middle');
-            el.classList.add('scoop-pile-card');
-            el.style.left = `${index * peek}px`;
-            el.style.top = '0px';
-            el.style.zIndex = String(index + 1);
-            pile.appendChild(el);
-        });
-        pile.style.width = `${cardWidth + Math.max(0, this.board.middle.length - 1) * peek}px`;
-        pile.style.height = '100px';
     }
 
     orderedPlayerIdsAroundTable() {
         const me = Number(this.getCurrentPlayerId());
-        const ids = Object.keys(this.board.tableSlots).map(Number);
-        if (!ids.includes(me)) {
-            return ids.sort((a, b) => a - b);
+        const slotIds = Object.keys(this.board.tableSlots).map(Number);
+
+        const fromOrder = (this.board.playerorder || this.gamedatas?.playerorder || [])
+            .map(Number)
+            .filter(id => slotIds.includes(id));
+
+        let ids;
+        if (fromOrder.length === slotIds.length && fromOrder.length > 0) {
+            ids = fromOrder;
+        } else {
+            ids = [...slotIds].sort((a, b) => {
+                const pa = this.board.players[a] || this.board.players[String(a)] || {};
+                const pb = this.board.players[b] || this.board.players[String(b)] || {};
+                return Number(pa.player_no ?? a) - Number(pb.player_no ?? b);
+            });
         }
 
-        // Seat order by player id, rotated so current viewer is first (bottom)
-        const sorted = [...ids].sort((a, b) => a - b);
-        const myIndex = sorted.indexOf(me);
-        return [...sorted.slice(myIndex), ...sorted.slice(0, myIndex)];
+        const myIndex = ids.indexOf(me);
+        if (myIndex <= 0) {
+            return ids;
+        }
+        return [...ids.slice(myIndex), ...ids.slice(0, myIndex)];
+    }
+
+    playerSeatNames(count) {
+        const layouts = {
+            1: ['bottom'],
+            2: ['bottom', 'top'],
+            3: ['bottom', 'tl', 'tr'],
+            4: ['bottom', 'left', 'top', 'right'],
+            5: ['bottom', 'left', 'tl', 'tr', 'right'],
+            6: ['bottom', 'left', 'tl', 'top', 'tr', 'right'],
+        };
+        return layouts[count] || layouts[6];
     }
 
     renderPlayers() {
@@ -530,11 +600,8 @@ export class Game {
         const me = Number(this.getCurrentPlayerId());
         const playerIds = this.orderedPlayerIdsAroundTable();
         const count = playerIds.length;
-        const rect = arena.getBoundingClientRect();
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
-        const radiusX = Math.min(rect.width * 0.42, 300);
-        const radiusY = Math.min(rect.height * 0.40, 200);
+        const seats = this.playerSeatNames(count);
+        arena.dataset.playerCount = String(count);
 
         playerIds.forEach((playerId, index) => {
             const player = this.board.players[playerId] || this.board.players[String(playerId)];
@@ -544,17 +611,12 @@ export class Game {
             const isMe = Number(playerId) === me;
             const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)] || [];
             const totalCards = this.getPlayerTotalCards(playerId);
-
-            // i=0 at bottom; then clockwise
-            const angle = (2 * Math.PI * index) / count;
-            const x = cx + radiusX * Math.sin(angle);
-            const y = cy + radiusY * Math.cos(angle);
+            const seat = seats[index] || 'bottom';
 
             const zone = document.createElement('div');
-            zone.className = 'scoop-player-zone' + (isMe ? ' scoop-player-me' : '');
+            zone.className = `scoop-player-zone scoop-seat-${seat}` + (isMe ? ' scoop-player-me' : '');
             zone.id = `scoop-player-${playerId}`;
-            zone.style.left = `${x}px`;
-            zone.style.top = `${y}px`;
+            zone.dataset.seat = seat;
 
             zone.innerHTML = `
                 <div class="scoop-player-name" style="color:#${player.color}">${player.name}${isMe ? ' (' + _('you') + ')' : ''}</div>
