@@ -619,9 +619,11 @@ export class Game {
             zone.dataset.seat = seat;
 
             zone.innerHTML = `
-                <div class="scoop-player-name" style="color:#${player.color}">${player.name}${isMe ? ' (' + _('you') + ')' : ''}</div>
-                <div class="scoop-player-meta">${_('Cards')}: ${totalCards}</div>
-                <div class="scoop-slots"></div>
+                <div class="scoop-player-panel">
+                    <div class="scoop-player-name" style="color:#${player.color}">${player.name}${isMe ? ' (' + _('you') + ')' : ''}</div>
+                    <div class="scoop-player-meta">${_('Cards')}: ${totalCards}</div>
+                    <div class="scoop-slots"></div>
+                </div>
             `;
 
             const slotsEl = zone.querySelector('.scoop-slots');

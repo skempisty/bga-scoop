@@ -6,6 +6,9 @@
 }
 
 #scoop-table {
+    --scoop-card-w: 72px;
+    --scoop-card-h: 100px;
+    --scoop-slots-gap: 4px;
     position: relative;
     min-height: 640px;
     padding: 12px;
@@ -74,13 +77,13 @@
 
 #scoop-middle-pile {
     position: relative;
-    height: 100px;
-    min-width: 72px;
+    height: var(--scoop-card-h);
+    min-width: var(--scoop-card-w);
 }
 
 .scoop-empty-pile {
-    width: 72px;
-    height: 100px;
+    width: var(--scoop-card-w);
+    height: var(--scoop-card-h);
     border: 2px dashed rgba(245, 240, 230, 0.35);
     border-radius: 8px;
     display: flex;
@@ -99,33 +102,43 @@
 .scoop-player-zone {
     position: relative;
     box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    z-index: 2;
+    container-type: inline-size;
+    container-name: scoop-seat;
+}
+
+.scoop-player-panel {
+    box-sizing: border-box;
     background: rgba(0, 0, 0, 0.35);
     border-radius: 8px;
     padding: 8px 10px;
     width: max-content;
     max-width: 100%;
-    min-width: 0;
-    z-index: 2;
 }
 
 .scoop-seat-bottom {
     grid-area: bottom;
     grid-column: 1 / -1;
-    justify-self: center;
     align-self: end;
 }
-.scoop-seat-top { grid-area: top; justify-self: center; align-self: start; }
-.scoop-seat-left { grid-area: left; justify-self: start; align-self: center; }
-.scoop-seat-right { grid-area: right; justify-self: end; align-self: center; }
-.scoop-seat-tl { grid-area: tl; justify-self: start; align-self: start; }
-.scoop-seat-tr { grid-area: tr; justify-self: end; align-self: start; }
+.scoop-seat-top { grid-area: top; align-self: start; }
+.scoop-seat-left { grid-area: left; align-self: center; align-items: flex-start; }
+.scoop-seat-right { grid-area: right; align-self: center; align-items: flex-end; }
+.scoop-seat-tl { grid-area: tl; align-self: start; align-items: flex-start; }
+.scoop-seat-tr { grid-area: tr; align-self: start; align-items: flex-end; }
 
 #scoop-arena[data-player-count="2"] .scoop-seat-top,
 #scoop-arena[data-player-count="4"] .scoop-seat-top {
     grid-column: 1 / -1;
 }
 
-.scoop-player-me {
+.scoop-player-me .scoop-player-panel {
     border: 2px solid #c9a227;
 }
 
@@ -139,32 +152,38 @@
 }
 
 .scoop-player-meta {
-    font-size: 11px;
-    opacity: 0.8;
+    font-size: 14px;
+    opacity: 0.9;
     margin-bottom: 6px;
 }
 
 .scoop-slots {
-    display: flex;
-    gap: 4px;
+    display: grid;
+    grid-template-columns: repeat(2, var(--scoop-card-w));
+    gap: var(--scoop-slots-gap);
     justify-content: center;
-    align-items: center;
-    max-width: 100%;
+    justify-items: center;
+}
+
+/* Seat cell is wide enough for 4 full-size cards (padding included). */
+@container scoop-seat (min-width: 328px) {
+    .scoop-slots {
+        grid-template-columns: repeat(4, var(--scoop-card-w));
+    }
 }
 
 .scoop-slot {
-    width: 56px;
-    height: 78px;
+    width: var(--scoop-card-w);
+    height: var(--scoop-card-h);
     display: flex;
     align-items: center;
     justify-content: center;
-    flex: 0 1 56px;
-    min-width: 0;
 }
 
 .scoop-slot .scoop-card {
-    width: 100%;
-    height: 100%;
+    width: var(--scoop-card-w);
+    height: var(--scoop-card-h);
+    flex-shrink: 0;
 }
 
 .scoop-slot-empty {
@@ -175,8 +194,9 @@
 
 .scoop-card {
     box-sizing: border-box;
-    width: 56px;
-    height: 78px;
+    width: var(--scoop-card-w);
+    height: var(--scoop-card-h);
+    flex-shrink: 0;
     border-radius: 6px;
     border: 1px solid rgba(0, 0, 0, 0.15);
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
@@ -194,6 +214,48 @@
     background-size: 88% 90%;
     background-position: center;
     background-repeat: no-repeat;
+}
+
+/* Tens: Balatro-style gold foil. Multiply tints the white card stock gold
+   while leaving black/red pips readable. */
+.scoop-card-face[data-rank="10"] {
+    background-color: #e8c547;
+    background-blend-mode: multiply;
+    border: 1px solid #b8860b;
+    box-shadow:
+        inset 2px 2px 0 #fff6c8,
+        inset -2px -2px 0 #8a6410,
+        0 2px 8px rgba(160, 110, 20, 0.5);
+}
+
+/* Static Balatro gold shine. Band stops measured from the gold Ace sprite
+   along the 135° diagonal (x+y): ~17% thin, ~30% hairline, ~47–51% thick, ~70% thin. */
+.scoop-card-face[data-rank="10"]::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+        135deg,
+        transparent 16.7%,
+        rgba(255, 250, 225, 0.55) 16.7%,
+        rgba(255, 250, 225, 0.55) 18.5%,
+        transparent 18.5%,
+        transparent 29.6%,
+        rgba(255, 250, 225, 0.55) 29.6%,
+        rgba(255, 250, 225, 0.55) 30.4%,
+        transparent 30.4%,
+        transparent 46.9%,
+        rgba(255, 252, 240, 0.58) 46.9%,
+        rgba(255, 252, 240, 0.58) 51.2%,
+        transparent 51.2%,
+        transparent 69.8%,
+        rgba(255, 250, 225, 0.55) 69.8%,
+        rgba(255, 250, 225, 0.55) 71.6%,
+        transparent 71.6%
+    );
+    mix-blend-mode: overlay;
 }
 
 .scoop-card-back {
@@ -214,8 +276,8 @@
 
 #scoop-middle-pile .scoop-card {
     box-sizing: border-box;
-    width: 72px;
-    height: 100px;
+    width: var(--scoop-card-w);
+    height: var(--scoop-card-h);
 }
 
 .scoop-card[data-location="hand"],
@@ -231,6 +293,13 @@
     transform: translateY(-10px);
     box-shadow: 0 8px 14px rgba(201, 162, 39, 0.55);
     outline: 2px solid #c9a227;
+}
+
+.scoop-card-face[data-rank="10"].scoop-selected {
+    box-shadow:
+        inset 2px 2px 0 #fff6c8,
+        inset -2px -2px 0 #8a6410,
+        0 8px 14px rgba(201, 162, 39, 0.55);
 }
 
 .scoop-matchable {
@@ -251,7 +320,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    min-height: 100px;
+    min-height: var(--scoop-card-h);
     padding: 8px;
     background: rgba(0, 0, 0, 0.2);
     border-radius: 8px;
@@ -370,31 +439,29 @@
 }
 
 @media (max-width: 740px) {
+    #scoop-table {
+        --scoop-card-w: 60px;
+        --scoop-card-h: 84px;
+    }
+
     #scoop-arena {
         min-height: 520px;
         gap: 6px;
         padding: 6px;
     }
 
-    .scoop-player-zone {
-        max-width: 100%;
+    .scoop-player-panel {
         padding: 6px;
     }
 
-    .scoop-card,
-    .scoop-slot {
-        width: 48px;
-        height: 68px;
-        flex-basis: 48px;
+    @container scoop-seat (min-width: 276px) {
+        .scoop-slots {
+            grid-template-columns: repeat(4, var(--scoop-card-w));
+        }
     }
 
     .scoop-slot-empty {
         box-sizing: border-box;
-    }
-
-    #scoop-middle-pile .scoop-card {
-        width: 60px;
-        height: 84px;
     }
 
     .scoop-banner-text {
