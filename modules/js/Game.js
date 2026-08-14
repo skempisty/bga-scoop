@@ -346,12 +346,6 @@ export class Game {
             </div>
         `);
 
-        Object.values(gamedatas.players).forEach(player => {
-            this.bga.playerPanels.getElement(player.id).insertAdjacentHTML('beforeend', `
-                <div class="scoop-panel-score">${_('Score')}: <span id="scoop-score-${player.id}">${player.score}</span></div>
-            `);
-        });
-
         this.renderBoard();
         this.observeArenaResize();
         this.setupNotifications();
@@ -487,17 +481,7 @@ export class Game {
         this.renderPlayers();
         this.renderMiddle();
         this.renderHand();
-        this.updateScores();
         this.updateSelectionUi();
-    }
-
-    updateScores() {
-        Object.values(this.board.players).forEach(player => {
-            const el = document.getElementById(`scoop-score-${player.id}`);
-            if (el) {
-                el.textContent = player.score;
-            }
-        });
     }
 
     renderMiddle() {
@@ -701,7 +685,8 @@ export class Game {
     updateSelectionUi() {
         document.querySelectorAll('.scoop-card').forEach(el => {
             el.classList.remove('scoop-selected');
-            el.classList.remove('scoop-matchable');
+            el.classList.remove('scoop-dimmed');
+            el.classList.remove('scoop-steel');
         });
         document.querySelectorAll('.scoop-blind-target').forEach(el => {
             el.classList.remove('scoop-blind-selected');
@@ -718,13 +703,30 @@ export class Game {
             });
         }
 
+        const myFaces = document.querySelectorAll(
+            '#scoop-hand .scoop-card-face, .scoop-player-me .scoop-card-face'
+        );
+
         if (this.addMatching?.isActive && this.addMatching.args?.matchableCardIds) {
-            this.addMatching.args.matchableCardIds.forEach(id => {
-                const el = document.querySelector(`.scoop-card[data-card-id="${id}"]`);
-                if (el && !el.classList.contains('scoop-selected')) {
-                    el.classList.add('scoop-matchable');
+            const allowed = new Set(this.addMatching.args.matchableCardIds.map(Number));
+            myFaces.forEach(el => {
+                if (el.classList.contains('scoop-selected')) {
+                    return;
+                }
+                if (!allowed.has(Number(el.dataset.cardId))) {
+                    el.classList.add('scoop-steel');
                 }
             });
+        } else if (this.playerTurn?.isActive && selected && selected.size > 0) {
+            const first = this.findCard([...selected][0]);
+            const rank = first ? String(first.type) : '';
+            if (rank) {
+                myFaces.forEach(el => {
+                    if (el.dataset.rank !== rank && !el.classList.contains('scoop-selected')) {
+                        el.classList.add('scoop-dimmed');
+                    }
+                });
+            }
         }
 
         if (this.playerTurn.selectedBlindSlot !== null && this.playerTurn.isActive) {
@@ -834,7 +836,6 @@ export class Game {
                 this.board.players[id].score = player.score;
             }
         });
-        this.updateScores();
     }
 
     async notif_roundScore(args) {

@@ -169,7 +169,7 @@ class Game extends \Bga\GameFramework\Table
 
     public function getDeckCount(): int
     {
-        return $this->bga->tableOptions->get(self::OPTION_DECK_COUNT) ?? 2;
+        return $this->bga->tableOptions->get(self::OPTION_DECK_COUNT) ?? 3;
     }
 
     public function sourceLocation(int $deckIndex): string

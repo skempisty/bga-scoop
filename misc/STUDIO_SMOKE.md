@@ -4,7 +4,7 @@ Run these in BGA Studio after deploying. Start a fresh table for each major scen
 
 ## Setup
 
-- [ ] Game loads with 3 players, 2 decks (default option)
+- [ ] Game loads with 3 players, 3 decks (default option)
 - [ ] Each player has 4 face-down + 4 face-up slots + 11 cards in hand (19 total)
 - [ ] Hand is sorted with 10s first (then K, Q, J, …, A)
 - [ ] Round banner shows "Round 1 of 3"

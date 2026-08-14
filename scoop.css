@@ -1,10 +1,5 @@
 /********* Scoop game UI **********/
 
-@font-face {
-    font-family: 'ScoopDisplay';
-    src: local('Georgia'), local('Times New Roman'), serif;
-}
-
 #scoop-table {
     --scoop-card-w: 72px;
     --scoop-card-h: 100px;
@@ -14,7 +9,7 @@
     padding: 12px;
     background: #0d3b2e url('img/table_felt.png') center / cover no-repeat;
     border-radius: 8px;
-    font-family: 'ScoopDisplay', Georgia, 'Times New Roman', serif;
+    font-family: Arial, Helvetica, sans-serif;
     color: #f5f0e6;
     overflow-x: hidden;
 }
@@ -203,7 +198,7 @@
     position: relative;
     cursor: default;
     user-select: none;
-    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
     overflow: hidden;
 }
 
@@ -302,9 +297,69 @@
         0 8px 14px rgba(201, 162, 39, 0.55);
 }
 
-.scoop-matchable {
-    outline: 2px dashed rgba(201, 162, 39, 0.75);
-    cursor: pointer;
+/* Other ranks in your hand/slots: still clickable to retarget, just quieter. */
+.scoop-dimmed {
+    opacity: 0.65;
+}
+
+/* After a face-down reveal: cards that cannot be added. Includes 10s. */
+.scoop-card-face.scoop-steel {
+    cursor: default;
+    opacity: 0.8;
+    background-color: #d1d8eb;
+    background-blend-mode: multiply;
+    border: 1px solid #7a8498;
+    box-shadow:
+        inset 2px 2px 0 #f4f6fc,
+        inset -2px -2px 0 #61687e,
+        0 2px 8px rgba(40, 50, 70, 0.45);
+}
+
+/* Static Balatro steel shine. Band stops measured from the steel Ace sprite
+   along the 135° diagonal (x+y): ~22–25 bright, ~34–38 mid then ~38–40 bright,
+   ~46.5–51 thick, ~55.5–61.5 mid, ~70–72.5 bright then ~77–80 bright, ~88.5 hairline. */
+.scoop-card-face.scoop-steel::after {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+        135deg,
+        transparent 22%,
+        rgba(236, 239, 252, 0.5) 22%,
+        rgba(236, 239, 252, 0.5) 25%,
+        transparent 25%,
+        transparent 34%,
+        rgba(236, 239, 252, 0.28) 34%,
+        rgba(236, 239, 252, 0.28) 38%,
+        rgba(236, 239, 252, 0.52) 38%,
+        rgba(236, 239, 252, 0.52) 40%,
+        transparent 40%,
+        transparent 46.5%,
+        rgba(244, 246, 252, 0.55) 46.5%,
+        rgba(244, 246, 252, 0.55) 51%,
+        rgba(236, 239, 252, 0.28) 51%,
+        rgba(236, 239, 252, 0.28) 53.5%,
+        transparent 53.5%,
+        transparent 55.5%,
+        rgba(236, 239, 252, 0.28) 55.5%,
+        rgba(236, 239, 252, 0.28) 61.5%,
+        transparent 61.5%,
+        transparent 70%,
+        rgba(236, 239, 252, 0.52) 70%,
+        rgba(236, 239, 252, 0.52) 72.5%,
+        rgba(236, 239, 252, 0.28) 72.5%,
+        rgba(236, 239, 252, 0.28) 77%,
+        rgba(236, 239, 252, 0.5) 77%,
+        rgba(236, 239, 252, 0.5) 79.5%,
+        transparent 79.5%,
+        transparent 88.5%,
+        rgba(236, 239, 252, 0.45) 88.5%,
+        rgba(236, 239, 252, 0.45) 89%,
+        transparent 89%
+    );
+    mix-blend-mode: overlay;
 }
 
 .scoop-blind-selected {
@@ -325,11 +380,6 @@
     background: rgba(0, 0, 0, 0.2);
     border-radius: 8px;
     justify-content: flex-end;
-}
-
-.scoop-panel-score {
-    font-size: 13px;
-    margin-top: 4px;
 }
 
 #scoop-banner-overlay {
@@ -358,7 +408,6 @@
 .scoop-banner-text {
     position: relative;
     z-index: 1;
-    font-family: 'ScoopDisplay', Georgia, 'Times New Roman', serif;
     font-size: clamp(64px, 14vw, 140px);
     font-weight: 900;
     letter-spacing: 0.12em;
