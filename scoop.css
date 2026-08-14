@@ -62,12 +62,29 @@
 }
 
 #scoop-middle-label,
-#scoop-hand-label {
+#scoop-hand-label,
+#scoop-hand-score {
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     opacity: 0.85;
+}
+
+#scoop-middle-label {
     margin-bottom: 6px;
+}
+
+#scoop-hand-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+#scoop-hand-score {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 #scoop-middle-pile {

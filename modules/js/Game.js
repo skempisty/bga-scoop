@@ -5,6 +5,9 @@
 const SUIT_SYMBOLS = ['♠', '♥', '♦', '♣'];
 const SUIT_CODES = ['S', 'H', 'D', 'C'];
 const RANK_ORDER = ['10', 'K', 'Q', 'J', '9', '8', '7', '6', '5', '4', '3', '2', 'A'];
+const RANK_POINTS = {
+    A: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, J: 10, Q: 10, K: 10, 10: 20,
+};
 const PILE_PEEK = 22;
 const PILE_ROW_GAP = 8;
 
@@ -340,7 +343,10 @@ export class Game {
                     <div id="scoop-banner-overlay" class="scoop-banner-hidden" aria-hidden="true"></div>
                 </div>
                 <div id="scoop-hand-zone">
-                    <div id="scoop-hand-label">${_('Your hand')}</div>
+                    <div id="scoop-hand-header">
+                        <div id="scoop-hand-label">${_('Your hand')}</div>
+                        <div id="scoop-hand-score" aria-live="polite"></div>
+                    </div>
                     <div id="scoop-hand"></div>
                 </div>
             </div>
@@ -481,6 +487,7 @@ export class Game {
         this.renderPlayers();
         this.renderMiddle();
         this.renderHand();
+        this.updateHandScore();
         this.updateSelectionUi();
     }
 
@@ -653,6 +660,46 @@ export class Game {
             el.addEventListener('click', () => this.onPlayableCardClick(card.id, 'hand'));
             hand.appendChild(el);
         });
+
+        this.updateHandScore();
+    }
+
+    cardPoints(card) {
+        if (!card) {
+            return 0;
+        }
+        if (card.points != null && card.points !== '') {
+            return Number(card.points);
+        }
+        return RANK_POINTS[card.type] ?? 0;
+    }
+
+    myTableSlots() {
+        const me = this.getCurrentPlayerId();
+        return this.board?.tableSlots?.[me] || this.board?.tableSlots?.[String(me)] || [];
+    }
+
+    updateHandScore() {
+        const el = document.getElementById('scoop-hand-score');
+        if (!el || !this.board) {
+            return;
+        }
+
+        const slots = this.myTableSlots();
+        let visible = 0;
+        (this.board.myHand || []).forEach(card => {
+            visible += this.cardPoints(card);
+        });
+        slots.forEach(slot => {
+            if (slot.up) {
+                visible += this.cardPoints(slot.up);
+            }
+        });
+        const hasHidden = slots.some(slot => slot.hasDown);
+
+        el.textContent = hasHidden
+            ? _('Hand Score: ${points} + ?').replace('${points}', String(visible))
+            : _('Hand Score: ${points}').replace('${points}', String(visible));
     }
 
     createCardElement(card, location) {
@@ -768,6 +815,7 @@ export class Game {
         }
         this.renderHand();
         this.renderPlayers();
+        this.updateHandScore();
         this.updateSelectionUi();
     }
 
