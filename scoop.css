@@ -51,9 +51,9 @@
     justify-content: center;
     justify-self: stretch;
     align-self: center;
-    width: 100%;
     max-width: 100%;
     min-width: 0;
+    padding: 32px;
 }
 
 #scoop-arena[data-player-count="2"] #scoop-middle-zone,
