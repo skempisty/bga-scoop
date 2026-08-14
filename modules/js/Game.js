@@ -316,6 +316,13 @@ export class Game {
         return this.bga.gameui?.player_id ?? this.bga.player_id ?? this.currentPlayerId;
     }
 
+    getActivePlayerId() {
+        return this.bga.players?.getActivePlayerId?.()
+            ?? this.bga.gameui?.getActivePlayerId?.()
+            ?? this.gamedatas?.gamestate?.active_player
+            ?? null;
+    }
+
     onPlayableCardClick(cardId, source) {
         this.getSelectionController().onCardClick(cardId, source);
     }
@@ -600,14 +607,20 @@ export class Game {
                 return;
             }
             const isMe = Number(playerId) === me;
+            const isActive = Number(playerId) === Number(this.getActivePlayerId());
             const slots = this.board.tableSlots[playerId] || this.board.tableSlots[String(playerId)] || [];
             const totalCards = this.getPlayerTotalCards(playerId);
             const seat = seats[index] || 'bottom';
 
             const zone = document.createElement('div');
-            zone.className = `scoop-player-zone scoop-seat-${seat}` + (isMe ? ' scoop-player-me' : '');
+            zone.className = `scoop-player-zone scoop-seat-${seat}`
+                + (isMe ? ' scoop-player-me' : '')
+                + (isActive ? ' scoop-player-active' : '');
             zone.id = `scoop-player-${playerId}`;
             zone.dataset.seat = seat;
+            if (isActive) {
+                zone.setAttribute('aria-current', 'true');
+            }
 
             zone.innerHTML = `
                 <div class="scoop-player-panel">
@@ -645,6 +658,18 @@ export class Game {
 
             arena.appendChild(zone);
         });
+
+        this.updateHandTurnHighlight();
+    }
+
+    updateHandTurnHighlight() {
+        const hand = document.getElementById('scoop-hand');
+        if (!hand) {
+            return;
+        }
+        const me = Number(this.getCurrentPlayerId());
+        const active = Number(this.getActivePlayerId());
+        hand.classList.toggle('scoop-hand-active', !!active && me === active);
     }
 
     renderHand() {
@@ -652,6 +677,7 @@ export class Game {
         if (!hand) {
             return;
         }
+        this.updateHandTurnHighlight();
         hand.innerHTML = '';
 
         const sorted = this.sortHand(this.board.myHand);

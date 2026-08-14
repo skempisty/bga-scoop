@@ -4,9 +4,11 @@
     --scoop-card-w: 72px;
     --scoop-card-h: 100px;
     --scoop-slots-gap: 4px;
+    /* Matches turn-glow extent (blur 14px + spread 6px) so the halo is not clipped. */
+    --scoop-turn-glow-size: 20px;
     position: relative;
     min-height: 640px;
-    padding: 12px;
+    padding: var(--scoop-turn-glow-size);
     background: #0d3b2e url('img/table_felt.png') center / cover no-repeat;
     border-radius: 8px;
     font-family: Arial, Helvetica, sans-serif;
@@ -29,7 +31,7 @@
     width: 100%;
     min-height: 520px;
     margin: 0 auto 12px;
-    padding: 8px;
+    padding: var(--scoop-turn-glow-size);
     overflow-x: hidden;
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
@@ -127,6 +129,7 @@
 
 .scoop-player-panel {
     box-sizing: border-box;
+    position: relative;
     background: rgba(0, 0, 0, 0.35);
     border-radius: 8px;
     padding: 8px 10px;
@@ -152,6 +155,36 @@
 
 .scoop-player-me .scoop-player-panel {
     border: 2px solid #c9a227;
+}
+
+/* Whose turn: static glow on a pseudo, pulse opacity (box-shadow animation is janky). */
+.scoop-player-active .scoop-player-panel::after,
+#scoop-hand.scoop-hand-active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 14px 6px rgba(201, 162, 39, 0.5);
+    pointer-events: none;
+    animation: scoop-turn-glow 2.8s ease-in-out infinite;
+}
+
+@keyframes scoop-turn-glow {
+    0%,
+    100% {
+        opacity: 0.45;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .scoop-player-active .scoop-player-panel::after,
+    #scoop-hand.scoop-hand-active::after {
+        animation: none;
+        opacity: 1;
+    }
 }
 
 .scoop-player-name {
@@ -389,6 +422,7 @@
 }
 
 #scoop-hand {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -513,7 +547,6 @@
     #scoop-arena {
         min-height: 520px;
         gap: 6px;
-        padding: 6px;
     }
 
     .scoop-player-panel {
