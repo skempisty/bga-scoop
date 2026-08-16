@@ -1103,28 +1103,35 @@ export class Game {
 
     buildRoundEndHero(playerId, args) {
         const entry = this.roundEndPlayerEntry(playerId, args);
+        const player = this.board?.players?.[playerId] || this.board?.players?.[String(playerId)] || {};
         const wrap = document.createElement('div');
-        wrap.className = 'scoop-round-end-hero';
+        wrap.className = 'scoop-round-end-hero' + (entry?.wentOut ? ' scoop-round-end-out' : '');
 
         const head = document.createElement('div');
         head.className = 'scoop-round-end-hero-head';
 
+        const identity = document.createElement('div');
+        identity.className = 'scoop-round-end-identity';
+
         const name = document.createElement('div');
         name.className = 'scoop-round-end-hero-name';
-        name.textContent = entry?.wentOut
-            ? _('You went out')
-            : _('Your remaining cards');
-        head.appendChild(name);
+        if (player.color) {
+            name.style.color = `#${player.color}`;
+        }
+        const playerName = player.name || String(playerId);
+        name.textContent = `${playerName} (${_('you')})`;
+        identity.appendChild(name);
+
+        const stamp = document.createElement('div');
+        stamp.className = 'scoop-round-end-stamp';
+        stamp.dataset.readyStamp = String(playerId);
+        identity.appendChild(stamp);
+        head.appendChild(identity);
 
         const points = document.createElement('div');
         points.className = 'scoop-round-end-hero-points';
         points.textContent = `+${entry?.points ?? 0}`;
         head.appendChild(points);
-
-        const stamp = document.createElement('div');
-        stamp.className = 'scoop-round-end-stamp';
-        stamp.dataset.readyStamp = String(playerId);
-        head.appendChild(stamp);
         wrap.appendChild(head);
 
         const groups = document.createElement('div');
@@ -1145,11 +1152,14 @@ export class Game {
         const entry = this.roundEndPlayerEntry(playerId, args);
         const player = this.board?.players?.[playerId] || this.board?.players?.[String(playerId)] || {};
         const wrap = document.createElement('div');
-        wrap.className = 'scoop-round-end-rival';
+        wrap.className = 'scoop-round-end-rival' + (entry?.wentOut ? ' scoop-round-end-out' : '');
         wrap.dataset.playerId = String(playerId);
 
         const head = document.createElement('div');
         head.className = 'scoop-round-end-rival-head';
+
+        const identity = document.createElement('div');
+        identity.className = 'scoop-round-end-identity';
 
         const name = document.createElement('div');
         name.className = 'scoop-round-end-rival-name';
@@ -1157,24 +1167,29 @@ export class Game {
             name.style.color = `#${player.color}`;
         }
         name.textContent = player.name || String(playerId);
-        head.appendChild(name);
-
-        const points = document.createElement('div');
-        points.className = 'scoop-round-end-rival-points';
-        points.textContent = entry?.wentOut
-            ? _('Out  +0')
-            : `+${entry?.points ?? 0}`;
-        head.appendChild(points);
+        identity.appendChild(name);
 
         const stamp = document.createElement('div');
         stamp.className = 'scoop-round-end-stamp';
         stamp.dataset.readyStamp = String(playerId);
-        head.appendChild(stamp);
+        identity.appendChild(stamp);
+        head.appendChild(identity);
+
+        const points = document.createElement('div');
+        points.className = 'scoop-round-end-rival-points';
+        points.textContent = `+${entry?.points ?? 0}`;
+        head.appendChild(points);
         wrap.appendChild(head);
 
         const groups = document.createElement('div');
         groups.className = 'scoop-round-end-groups';
-        this.appendRoundEndCardGroups(groups, entry);
+        const cardCount = this.appendRoundEndCardGroups(groups, entry);
+        if (cardCount === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'scoop-round-end-clean';
+            empty.textContent = _('Scooped out');
+            groups.appendChild(empty);
+        }
         wrap.appendChild(groups);
 
         return wrap;

@@ -288,7 +288,8 @@
 
 @media (prefers-reduced-motion: reduce) {
     .scoop-player-active .scoop-player-panel::after,
-    #scoop-hand.scoop-hand-active::after {
+    #scoop-hand.scoop-hand-active::after,
+    .scoop-round-end-out::after {
         animation: none;
         opacity: 1;
     }
@@ -749,6 +750,7 @@
 }
 
 .scoop-round-end-hero {
+    position: relative;
     background: rgba(0, 0, 0, 0.28);
     border: 3px solid #c9a227;
     border-radius: 10px;
@@ -759,11 +761,18 @@
 .scoop-round-end-hero-head,
 .scoop-round-end-rival-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
-    gap: 10px;
-    flex-wrap: wrap;
+    gap: 12px;
     margin-bottom: 8px;
+}
+
+.scoop-round-end-identity {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    flex: 1;
 }
 
 .scoop-round-end-hero-name,
@@ -772,24 +781,31 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     font-size: 13px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.scoop-round-end-hero-points,
+.scoop-round-end-rival-points {
+    margin-left: auto;
+    text-align: right;
+    flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+    color: #f0d060;
+    line-height: 1;
 }
 
 .scoop-round-end-hero-points {
     font-size: clamp(32px, 6vw, 52px);
     font-weight: 900;
-    color: #f0d060;
-    font-variant-numeric: tabular-nums;
-    line-height: 1;
     text-shadow: 0 0 12px rgba(240, 208, 96, 0.55);
-    margin-left: auto;
 }
 
 .scoop-round-end-rival-points {
     font-size: 22px;
     font-weight: 800;
-    color: #f0d060;
-    font-variant-numeric: tabular-nums;
-    margin-left: auto;
 }
 
 .scoop-round-end-groups {
@@ -854,19 +870,79 @@
 }
 
 .scoop-round-end-rival {
+    position: relative;
     background: rgba(0, 0, 0, 0.22);
     border: 1px solid rgba(201, 162, 39, 0.55);
     border-radius: 8px;
     padding: 8px 10px 10px;
 }
 
+.scoop-round-end-out {
+    background:
+        radial-gradient(ellipse at center, rgba(201, 162, 39, 0.42) 0%, rgba(13, 59, 46, 0.72) 58%, rgba(8, 28, 22, 0.92) 100%);
+    border-color: #e8c547;
+    box-shadow:
+        0 0 0 1px rgba(255, 246, 208, 0.22),
+        inset 0 0 0 1px rgba(255, 246, 208, 0.12);
+}
+
+.scoop-round-end-rival.scoop-round-end-out {
+    border-width: 2px;
+}
+
+.scoop-round-end-out::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+        135deg,
+        transparent 16.7%,
+        rgba(255, 250, 225, 0.4) 16.7%,
+        rgba(255, 250, 225, 0.4) 18.5%,
+        transparent 18.5%,
+        transparent 29.6%,
+        rgba(255, 250, 225, 0.28) 29.6%,
+        rgba(255, 250, 225, 0.28) 30.4%,
+        transparent 30.4%,
+        transparent 46.9%,
+        rgba(255, 252, 240, 0.45) 46.9%,
+        rgba(255, 252, 240, 0.45) 51.2%,
+        transparent 51.2%,
+        transparent 69.8%,
+        rgba(255, 250, 225, 0.32) 69.8%,
+        rgba(255, 250, 225, 0.32) 71.6%,
+        transparent 71.6%
+    );
+    mix-blend-mode: overlay;
+}
+
+.scoop-round-end-out::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: 0 0 16px 5px rgba(201, 162, 39, 0.48);
+    animation: scoop-turn-glow 2.8s ease-in-out infinite;
+}
+
+.scoop-round-end-out > * {
+    position: relative;
+    z-index: 1;
+}
+
 .scoop-round-end-stamp {
-    min-width: 3.5em;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: transparent;
+    flex-shrink: 0;
+}
+
+.scoop-round-end-stamp:empty {
+    display: none;
 }
 
 .scoop-round-end-stamp-on {
