@@ -346,6 +346,7 @@ export class Game {
                     <div id="scoop-middle-zone">
                         <div id="scoop-middle-label">${_('Pile')}</div>
                         <div id="scoop-middle-pile"></div>
+                        <div id="scoop-middle-top" class="scoop-middle-top-empty" aria-live="polite"></div>
                     </div>
                     <div id="scoop-banner-overlay" class="scoop-banner-hidden" aria-hidden="true"></div>
                 </div>
@@ -498,6 +499,80 @@ export class Game {
         this.updateSelectionUi();
     }
 
+    getMiddleTopGroup() {
+        const middle = this.board?.middle || [];
+        if (middle.length === 0) {
+            return { rank: null, count: 0 };
+        }
+
+        const rank = String(middle[middle.length - 1].type);
+        let count = 0;
+        for (let i = middle.length - 1; i >= 0; i--) {
+            if (String(middle[i].type) !== rank) {
+                break;
+            }
+            count++;
+        }
+        return { rank, count };
+    }
+
+    rankDisplayName(rank, plural) {
+        const singular = {
+            A: _('Ace'),
+            2: _('Two'),
+            3: _('Three'),
+            4: _('Four'),
+            5: _('Five'),
+            6: _('Six'),
+            7: _('Seven'),
+            8: _('Eight'),
+            9: _('Nine'),
+            10: _('Ten'),
+            J: _('Jack'),
+            Q: _('Queen'),
+            K: _('King'),
+        };
+        const plurals = {
+            A: _('Aces'),
+            2: _('Twos'),
+            3: _('Threes'),
+            4: _('Fours'),
+            5: _('Fives'),
+            6: _('Sixes'),
+            7: _('Sevens'),
+            8: _('Eights'),
+            9: _('Nines'),
+            10: _('Tens'),
+            J: _('Jacks'),
+            Q: _('Queens'),
+            K: _('Kings'),
+        };
+        const names = plural ? plurals : singular;
+        return names[rank] || String(rank);
+    }
+
+    renderMiddleTopLabel() {
+        const el = document.getElementById('scoop-middle-top');
+        if (!el) {
+            return;
+        }
+
+        const { rank, count } = this.getMiddleTopGroup();
+        if (!rank || count < 1) {
+            el.innerHTML = '';
+            el.classList.add('scoop-middle-top-empty');
+            el.removeAttribute('aria-label');
+            return;
+        }
+
+        const rankName = this.rankDisplayName(rank, count !== 1);
+        el.classList.remove('scoop-middle-top-empty');
+        el.innerHTML = _('${count} ${rank}')
+            .replace('${count}', `<span class="scoop-middle-top-count">${count}</span>`)
+            .replace('${rank}', `<span class="scoop-middle-top-rank">${rankName}</span>`);
+        el.setAttribute('aria-label', `${count} ${rankName}`);
+    }
+
     renderMiddle() {
         if (!this.board || this._renderingMiddle) {
             return;
@@ -515,6 +590,7 @@ export class Game {
                 pile.style.width = '72px';
                 pile.style.height = '100px';
                 pile.innerHTML = `<div class="scoop-empty-pile">${_('Empty')}</div>`;
+                this.renderMiddleTopLabel();
                 return;
             }
 
@@ -544,6 +620,7 @@ export class Game {
 
             pile.style.width = `${cardWidth + Math.max(0, cols - 1) * PILE_PEEK}px`;
             pile.style.height = `${rows * cardHeight + Math.max(0, rows - 1) * PILE_ROW_GAP}px`;
+            this.renderMiddleTopLabel();
         } finally {
             this._renderingMiddle = false;
         }
