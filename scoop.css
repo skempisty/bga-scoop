@@ -122,6 +122,59 @@
     color: rgba(245, 240, 230, 0.88);
 }
 
+#scoop-middle-top.scoop-middle-top-flip {
+    min-height: 1.4em;
+}
+
+.scoop-flip-announce {
+    display: inline-block;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #f0d060;
+    text-transform: none;
+    animation: scoop-flip-label-in 0.4s ease-out;
+}
+
+.scoop-middle-top-flip .scoop-middle-top-rank {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #fff6d0;
+}
+
+.scoop-card-just-flipped {
+    transition: none;
+    outline: 2px solid #f0d060;
+    animation: scoop-flip-glow 2.5s ease-out;
+}
+
+@keyframes scoop-flip-label-in {
+    0% {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes scoop-flip-glow {
+    0% {
+        transform: scale(0.94);
+        box-shadow: 0 0 0 0 rgba(240, 208, 96, 0.85);
+    }
+    14% {
+        transform: scale(1.07);
+        box-shadow: 0 0 18px 6px rgba(240, 208, 96, 0.5);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+    }
+}
+
 .scoop-empty-pile {
     width: var(--scoop-card-w);
     height: var(--scoop-card-h);
@@ -211,6 +264,11 @@
     #scoop-hand.scoop-hand-active::after {
         animation: none;
         opacity: 1;
+    }
+
+    .scoop-flip-announce,
+    .scoop-card-just-flipped {
+        animation: none;
     }
 }
 

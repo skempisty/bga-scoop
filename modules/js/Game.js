@@ -25,6 +25,7 @@ class PlayerTurn {
         this.selectedBlindSlot = null;
         this.isActive = !!isCurrentPlayerActive;
         this.args = args;
+        this.game.clearFlipAnnounce();
         this.game.renderBoard();
         this.game.updateSelectionUi();
 
@@ -308,6 +309,7 @@ export class Game {
         this.gamedatas = null;
         this.board = null;
         this.currentPlayerId = null;
+        this._flipAnnounce = null;
     }
 
     getSelectionController() {
@@ -562,6 +564,23 @@ export class Game {
             return;
         }
 
+        if (this._flipAnnounce?.rank) {
+            const rankName = this.rankDisplayName(this._flipAnnounce.rank, false);
+            const usesAn = this._flipAnnounce.rank === 'A' || this._flipAnnounce.rank === '8';
+            const template = usesAn
+                ? _('Flipped an ${rank}')
+                : _('Flipped a ${rank}');
+            const label = template.replace('${rank}', rankName);
+            el.classList.remove('scoop-middle-top-empty');
+            el.classList.add('scoop-middle-top-flip');
+            el.innerHTML = `<span class="scoop-flip-announce">${template
+                .replace('${rank}', `<span class="scoop-middle-top-rank">${rankName}</span>`)}</span>`;
+            el.setAttribute('aria-label', label);
+            return;
+        }
+
+        el.classList.remove('scoop-middle-top-flip');
+
         const { rank, count } = this.getMiddleTopGroup();
         if (!rank || count < 1) {
             el.innerHTML = '';
@@ -603,6 +622,9 @@ export class Game {
                 const el = this.createCardElement(card, 'middle');
                 el.classList.add('scoop-pile-card');
                 el.style.zIndex = String(index + 1);
+                if (this._flipAnnounce && Number(card.id) === Number(this._flipAnnounce.cardId)) {
+                    el.classList.add('scoop-card-just-flipped');
+                }
                 pile.appendChild(el);
             });
 
@@ -914,6 +936,33 @@ export class Game {
         }
     }
 
+    setFlipAnnounce(card) {
+        if (!card) {
+            this._flipAnnounce = null;
+            return;
+        }
+        this._flipAnnounce = {
+            cardId: Number(card.id),
+            rank: String(card.type),
+        };
+    }
+
+    clearFlipAnnounce() {
+        this._flipAnnounce = null;
+    }
+
+    async pauseForReveal(ms = 2500) {
+        const ui = this.bga?.gameui;
+        if (typeof ui?.wait === 'function') {
+            await ui.wait(ms);
+            return;
+        }
+        if (typeof ui?.bgaAnimationsActive === 'function' && !ui.bgaAnimationsActive()) {
+            return;
+        }
+        await new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     setupNotifications() {
         this.bga.notifications.setupPromiseNotifications();
     }
@@ -953,6 +1002,7 @@ export class Game {
         }
         args.cards.forEach(card => this.board.middle.push(card));
         this.applyCountSnapshots(args);
+        this.clearFlipAnnounce();
         this.renderBoard();
     }
 
@@ -983,11 +1033,14 @@ export class Game {
 
         args.cards.forEach(card => this.board.middle.push(card));
         this.applyCountSnapshots(args);
+        this.setFlipAnnounce(args.cards[0]);
         this.renderBoard();
+        await this.pauseForReveal(2500);
     }
 
     async notif_scoop(args) {
         this.board.middle = [];
+        this.clearFlipAnnounce();
         this.showScoopFlash();
         this.renderBoard();
     }
@@ -995,6 +1048,7 @@ export class Game {
     async notif_pickup(args) {
         this.board.middle = [];
         this.applyCountSnapshots(args);
+        this.clearFlipAnnounce();
         this.renderBoard();
     }
 
