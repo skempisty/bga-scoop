@@ -3,6 +3,9 @@
 #scoop-table {
     --scoop-card-w: 72px;
     --scoop-card-h: 100px;
+    /* Faces are painted this much larger, then scaled down to --scoop-card-w/h.
+       Flip scale stays at or below 1.0 relative to that paint, so the art is never stretched. */
+    --scoop-card-paint: 1.2;
     --scoop-slots-gap: 4px;
     /* Matches turn-glow extent (blur 14px + spread 6px) so the halo is not clipped. */
     --scoop-turn-glow-size: 20px;
@@ -148,8 +151,13 @@
 
 .scoop-card-just-flipped-in {
     transition: none;
+    overflow: visible;
     outline: 2px solid #f0d060;
-    animation: scoop-flip-glow 2.5s ease-out forwards;
+    animation: scoop-flip-glow 1.1s ease-out forwards;
+}
+
+.scoop-card-just-flipped-in::before {
+    animation: scoop-flip-glow-art 1.1s ease-out forwards;
 }
 
 .scoop-round-end-card.scoop-card-just-flipped {
@@ -167,22 +175,28 @@
     }
 }
 
+@keyframes scoop-flip-glow-art {
+    0% {
+        transform: translate(-50%, -50%) scale(calc(0.94 / var(--scoop-card-paint, 1.2)));
+    }
+    32% {
+        transform: translate(-50%, -50%) scale(calc(1.07 / var(--scoop-card-paint, 1.2)));
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(calc(1 / var(--scoop-card-paint, 1.2)));
+    }
+}
+
 @keyframes scoop-flip-glow {
     0% {
-        transform: scale(0.94);
         box-shadow: 0 0 0 0 rgba(240, 208, 96, 0.85);
         outline-color: #f0d060;
     }
-    14% {
-        transform: scale(1.07);
+    32% {
         box-shadow: 0 0 18px 6px rgba(240, 208, 96, 0.5);
         outline-color: #f0d060;
     }
-    70% {
-        outline-color: #f0d060;
-    }
     100% {
-        transform: scale(1);
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
         outline-color: transparent;
     }
@@ -281,6 +295,7 @@
 
     .scoop-flip-announce-in,
     .scoop-card-just-flipped-in,
+    .scoop-card-just-flipped-in::before,
     .scoop-round-end-kicker span,
     .scoop-round-end-card,
     .scoop-round-end-panel,
@@ -357,10 +372,29 @@
 .scoop-card-face {
     border: none;
     background-color: #ffffff;
-    /* Borderless art — safe to inset without a printed frame line */
+    /* Art is drawn on ::before at --scoop-card-paint, then scaled down to this box. */
+    background-size: 0 0;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.scoop-card-face::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(100% * var(--scoop-card-paint, 1.2));
+    height: calc(100% * var(--scoop-card-paint, 1.2));
+    transform: translate(-50%, -50%) scale(calc(1 / var(--scoop-card-paint, 1.2)));
+    transform-origin: center center;
+    background-image: inherit;
+    background-color: inherit;
     background-size: 88% 90%;
     background-position: center;
     background-repeat: no-repeat;
+    background-blend-mode: inherit;
+    border-radius: inherit;
+    pointer-events: none;
 }
 
 /* Tens: Balatro-style gold foil. Multiply tints the white card stock gold
@@ -646,7 +680,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 16px;
+    padding: 24px;
     overflow: hidden;
     border-radius: 8px;
     pointer-events: auto;
@@ -666,8 +700,11 @@
 .scoop-round-end-panel {
     position: relative;
     z-index: 1;
+    box-sizing: border-box;
     width: min(920px, 100%);
+    max-width: 100%;
     max-height: 100%;
+    min-width: 0;
     overflow-y: auto;
     background: rgba(8, 28, 22, 0.88);
     border: 2px solid #c9a227;
@@ -713,7 +750,7 @@
 
 .scoop-round-end-hero {
     background: rgba(0, 0, 0, 0.28);
-    border: 1px solid rgba(201, 162, 39, 0.45);
+    border: 3px solid #c9a227;
     border-radius: 10px;
     padding: 12px 14px 14px;
     margin-bottom: 12px;
@@ -780,12 +817,6 @@
     animation: scoop-reveal-card 0.5s cubic-bezier(0.18, 0.9, 0.32, 1.15) both;
 }
 
-.scoop-round-end-card-sm {
-    width: 48px;
-    height: 66px;
-    border-radius: 4px;
-}
-
 .scoop-card-points {
     position: absolute;
     z-index: 2;
@@ -805,12 +836,6 @@
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 
-.scoop-round-end-card-sm .scoop-card-points {
-    font-size: 9px;
-    padding: 0 3px;
-    bottom: 2px;
-}
-
 .scoop-round-end-clean {
     text-align: center;
     font-size: 18px;
@@ -828,14 +853,9 @@
     gap: 8px;
 }
 
-.scoop-round-end-rivals-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 8px;
-}
-
 .scoop-round-end-rival {
     background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(201, 162, 39, 0.55);
     border-radius: 8px;
     padding: 8px 10px 10px;
 }
@@ -850,8 +870,8 @@
 }
 
 .scoop-round-end-stamp-on {
-    color: #f0d060;
-    text-shadow: 0 0 8px rgba(240, 208, 96, 0.65);
+    color: #6fdd6a;
+    text-shadow: 0 0 8px rgba(80, 210, 90, 0.75);
 }
 
 .scoop-round-end-actions {
@@ -860,31 +880,6 @@
     align-items: center;
     gap: 8px;
     margin-top: 16px;
-}
-
-.scoop-round-end-ready-btn {
-    appearance: none;
-    background: linear-gradient(180deg, #f0d060, #c9a227);
-    color: #1a1408;
-    font-weight: 800;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-    border: none;
-    border-radius: 8px;
-    padding: 12px 36px;
-    font-size: 16px;
-    font-family: Arial, Helvetica, sans-serif;
-    cursor: pointer;
-    box-shadow: 0 4px 0 #8a6a12, 0 8px 18px rgba(0, 0, 0, 0.45);
-}
-
-.scoop-round-end-ready-btn:hover {
-    filter: brightness(1.06);
-}
-
-.scoop-round-end-ready-btn:active {
-    transform: translateY(2px);
-    box-shadow: 0 2px 0 #8a6a12, 0 4px 10px rgba(0, 0, 0, 0.45);
 }
 
 .scoop-round-end-you-ready,
@@ -897,8 +892,9 @@
 }
 
 .scoop-round-end-you-ready {
-    color: #f0d060;
+    color: #6fdd6a;
     font-weight: 700;
+    text-shadow: 0 0 8px rgba(80, 210, 90, 0.55);
 }
 
 @keyframes scoop-round-end-backdrop-in {
@@ -963,17 +959,11 @@
         letter-spacing: 0.08em;
     }
 
+    #scoop-round-end-overlay {
+        padding: 16px;
+    }
+
     .scoop-round-end-panel {
         padding: 14px 12px 14px;
-    }
-
-    .scoop-round-end-card-sm {
-        width: 40px;
-        height: 56px;
-    }
-
-    .scoop-round-end-ready-btn {
-        width: 100%;
-        max-width: 280px;
     }
 }

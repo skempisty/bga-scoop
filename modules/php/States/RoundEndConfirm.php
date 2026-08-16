@@ -43,10 +43,7 @@ class RoundEndConfirm extends GameState
             'player_id' => $currentPlayerId,
         ]);
 
-        $this->gamestate->setPlayerNonMultiactive(
-            $currentPlayerId,
-            fn () => $this->game->advanceAfterRoundConfirm()
-        );
+        $this->gamestate->setPlayerNonMultiactive($currentPlayerId, RoundAdvance::class);
     }
 
     public function zombie(int $playerId)

@@ -303,10 +303,12 @@ class RoundEndConfirm {
         this.game = game;
         this.bga = bga;
         this.isActive = false;
+        this.sending = false;
     }
 
     onEnteringState(args, isCurrentPlayerActive) {
         this.args = args;
+        this.sending = false;
         this.game.roundEndArgs = args;
         this.game.roundEndReadyIds = new Set((args?.readyPlayerIds || []).map(Number));
         this.game.showRoundEndOverlay(args);
@@ -315,6 +317,7 @@ class RoundEndConfirm {
 
     onLeavingState() {
         this.isActive = false;
+        this.sending = false;
         this.bga.statusBar.removeActionButtons();
         this.game.hideRoundEndOverlay();
     }
@@ -333,6 +336,7 @@ class RoundEndConfirm {
                     : _('Players must ready up for the next round')
             );
         } else if (this.isActive) {
+            this.sending = false;
             this.bga.statusBar.setTitle(
                 gameOver
                     ? _('${you} — review remaining cards, then continue')
@@ -351,18 +355,25 @@ class RoundEndConfirm {
             );
         }
 
-        this.game.setRoundEndCanReady(this.isActive);
+        this.game.updateRoundEndOverlayMeta();
     }
 
     onReady() {
-        if (!this.isActive) {
+        if (!this.isActive || this.sending) {
             return;
         }
-        this.isActive = false;
-        this.game.setRoundEndCanReady(false);
-        this.bga.actions.performAction('actReady', {}).catch(() => {
-            this.isActive = true;
-            this.game.setRoundEndCanReady(true);
+
+        // performAction returns undefined when the click is rejected (interface
+        // still locked, or the player is not active yet). Do not flip local
+        // ready state until a real request is sent — otherwise Ready dies until F5.
+        const result = this.bga.actions.performAction('actReady', {});
+        if (!result || typeof result.then !== 'function') {
+            return;
+        }
+
+        this.sending = true;
+        result.catch(() => {
+            this.sending = false;
         });
     }
 }
@@ -383,7 +394,6 @@ export class Game {
         this._flipAnnounce = null;
         this.roundEndArgs = null;
         this.roundEndReadyIds = new Set();
-        this.roundEndCanReady = false;
     }
 
     getSelectionController() {
@@ -1017,12 +1027,6 @@ export class Game {
         }
         this.roundEndArgs = null;
         this.roundEndReadyIds = new Set();
-        this.roundEndCanReady = false;
-    }
-
-    setRoundEndCanReady(canReady) {
-        this.roundEndCanReady = !!canReady;
-        this.updateRoundEndOverlayMeta();
     }
 
     markRoundEndReady(playerId) {
@@ -1081,11 +1085,9 @@ export class Game {
         const rivals = playerIds.filter(id => id !== heroId);
         if (rivals.length > 0) {
             const list = document.createElement('div');
-            list.className = spectator
-                ? 'scoop-round-end-rivals scoop-round-end-rivals-grid'
-                : 'scoop-round-end-rivals';
+            list.className = 'scoop-round-end-rivals';
             rivals.forEach(playerId => {
-                list.appendChild(this.buildRoundEndRival(playerId, args, { compact: true }));
+                list.appendChild(this.buildRoundEndRival(playerId, args));
             });
             panel.appendChild(list);
         }
@@ -1110,7 +1112,7 @@ export class Game {
         const name = document.createElement('div');
         name.className = 'scoop-round-end-hero-name';
         name.textContent = entry?.wentOut
-            ? _('You went out — no penalty')
+            ? _('You went out')
             : _('Your remaining cards');
         head.appendChild(name);
 
@@ -1127,11 +1129,11 @@ export class Game {
 
         const groups = document.createElement('div');
         groups.className = 'scoop-round-end-groups';
-        const cardCount = this.appendRoundEndCardGroups(groups, entry, { size: 'hero' });
+        const cardCount = this.appendRoundEndCardGroups(groups, entry);
         if (cardCount === 0) {
             const empty = document.createElement('div');
             empty.className = 'scoop-round-end-clean';
-            empty.textContent = _('Clean sweep');
+            empty.textContent = _('Scooped out');
             groups.appendChild(empty);
         }
         wrap.appendChild(groups);
@@ -1139,11 +1141,11 @@ export class Game {
         return wrap;
     }
 
-    buildRoundEndRival(playerId, args, { compact = true } = {}) {
+    buildRoundEndRival(playerId, args) {
         const entry = this.roundEndPlayerEntry(playerId, args);
         const player = this.board?.players?.[playerId] || this.board?.players?.[String(playerId)] || {};
         const wrap = document.createElement('div');
-        wrap.className = 'scoop-round-end-rival' + (compact ? '' : ' scoop-round-end-rival-full');
+        wrap.className = 'scoop-round-end-rival';
         wrap.dataset.playerId = String(playerId);
 
         const head = document.createElement('div');
@@ -1172,37 +1174,34 @@ export class Game {
 
         const groups = document.createElement('div');
         groups.className = 'scoop-round-end-groups';
-        this.appendRoundEndCardGroups(groups, entry, { size: compact ? 'sm' : 'md' });
+        this.appendRoundEndCardGroups(groups, entry);
         wrap.appendChild(groups);
 
         return wrap;
     }
 
-    appendRoundEndCardGroups(container, entry, { size = 'hero' } = {}) {
+    appendRoundEndCardGroups(container, entry) {
         if (!entry) {
             return 0;
         }
         let index = 0;
         index = this.appendRoundEndGroup(container, _('Face-down'), entry.tableDown || [], {
             revealed: true,
-            size,
             startIndex: index,
             sort: false,
         });
         index = this.appendRoundEndGroup(container, _('Face-up'), entry.tableUp || [], {
-            size,
             startIndex: index,
             sort: false,
         });
         index = this.appendRoundEndGroup(container, _('Hand'), entry.hand || [], {
-            size,
             startIndex: index,
             sort: true,
         });
         return index;
     }
 
-    appendRoundEndGroup(container, label, cards, { revealed = false, size = 'hero', startIndex = 0, sort = false } = {}) {
+    appendRoundEndGroup(container, label, cards, { revealed = false, startIndex = 0, sort = false } = {}) {
         if (!cards || cards.length === 0) {
             return startIndex;
         }
@@ -1215,14 +1214,11 @@ export class Game {
         group.appendChild(caption);
 
         const row = document.createElement('div');
-        row.className = 'scoop-round-end-cards' + (size === 'sm' ? ' scoop-round-end-cards-sm' : '');
+        row.className = 'scoop-round-end-cards';
         const list = sort ? this.sortHand(cards) : cards;
         list.forEach((card, i) => {
             const el = this.createCardElement(card, 'reveal');
             el.classList.add('scoop-round-end-card');
-            if (size === 'sm') {
-                el.classList.add('scoop-round-end-card-sm');
-            }
             if (revealed) {
                 el.classList.add('scoop-card-just-flipped');
             }
@@ -1259,22 +1255,14 @@ export class Game {
         const waitingIds = this.roundEndPlayerIds().filter(id => !readyIds.has(id));
         const spectator = this.isSpectator();
 
-        if (this.roundEndCanReady && !spectator) {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'scoop-round-end-ready-btn';
-            btn.id = 'scoop-round-end-ready';
-            btn.textContent = args.gameOver ? _('Continue') : _('Ready');
-            btn.addEventListener('click', () => this.roundEndConfirm?.onReady());
-            actions.appendChild(btn);
-        } else if (!spectator && readyIds.has(me)) {
+        if (!spectator && readyIds.has(me)) {
             const mine = document.createElement('div');
             mine.className = 'scoop-round-end-you-ready';
             mine.textContent = _('You are ready');
             actions.appendChild(mine);
         }
 
-        if (waitingIds.length > 0 && (readyIds.has(me) || spectator || !this.roundEndCanReady)) {
+        if (waitingIds.length > 0 && (readyIds.has(me) || spectator)) {
             const wait = document.createElement('div');
             wait.className = 'scoop-round-end-wait';
             const names = waitingIds.map(id => {
@@ -1285,6 +1273,8 @@ export class Game {
                 .replace('${players}', names.join(', '));
             actions.appendChild(wait);
         }
+
+        actions.style.display = actions.childElementCount > 0 ? '' : 'none';
     }
 
     updateSelectionUi() {
