@@ -99,6 +99,11 @@ class PlayerTurn {
             return;
         }
 
+        const playableIds = this.args?.playableCardIds;
+        if (playableIds && !playableIds.map(Number).includes(Number(cardId))) {
+            return;
+        }
+
         // Face-down selection is exclusive — matching extras come after reveal.
         if (this.selectedBlindSlot !== null) {
             this.selectedBlindSlot = null;
@@ -867,15 +872,33 @@ export class Game {
                     el.classList.add('scoop-steel');
                 }
             });
-        } else if (this.playerTurn?.isActive && selected && selected.size > 0) {
-            const first = this.findCard([...selected][0]);
-            const rank = first ? String(first.type) : '';
-            if (rank) {
+        } else if (this.playerTurn?.isActive) {
+            const playableIds = this.playerTurn.args?.playableCardIds;
+            if (playableIds) {
+                const playable = new Set(playableIds.map(Number));
                 myFaces.forEach(el => {
-                    if (el.dataset.rank !== rank && !el.classList.contains('scoop-selected')) {
-                        el.classList.add('scoop-dimmed');
+                    if (el.classList.contains('scoop-selected')) {
+                        return;
+                    }
+                    if (!playable.has(Number(el.dataset.cardId))) {
+                        el.classList.add('scoop-steel');
                     }
                 });
+            }
+
+            if (selected && selected.size > 0) {
+                const first = this.findCard([...selected][0]);
+                const rank = first ? String(first.type) : '';
+                if (rank) {
+                    myFaces.forEach(el => {
+                        if (el.classList.contains('scoop-selected') || el.classList.contains('scoop-steel')) {
+                            return;
+                        }
+                        if (el.dataset.rank !== rank) {
+                            el.classList.add('scoop-dimmed');
+                        }
+                    });
+                }
             }
         }
 
