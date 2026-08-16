@@ -105,12 +105,21 @@ class PlayerTurn extends GameState
 
         $this->game->cards->insertCardOnExtremePosition((int) $downCard['id'], 'middle', true);
 
+        $topAfter = Cards::getTopGroup($this->game->getMiddleCards());
+        $scooped = !$illegalBlind && (
+            ($revealedRank === '10')
+            || ($topAfter['rank'] === $revealedRank && $topAfter['count'] === 4)
+        );
+        $mayAddMatching = !$illegalBlind && !$scooped
+            && $this->game->getMatchingAddInfo($activePlayerId)['maxAdd'] > 0;
+
         $this->bga->notify->all('blindPlayed', clienttranslate('${player_name} plays a face-down card: ${cards_label}'), [
             'player_id' => $activePlayerId,
             'slot' => $slot,
             'cards' => [$this->game->enrichCard($downCard)],
             'cards_label' => Cards::formatCardLabel($downCard),
             'illegal' => $illegalBlind,
+            'mayAddMatching' => $mayAddMatching,
             'cardCounts' => $this->game->getPublicCardCounts(),
             'handCounts' => $this->game->getPublicHandCounts(),
             'tableSlots' => $this->game->getPublicTableSlots(),
@@ -121,11 +130,6 @@ class PlayerTurn extends GameState
 
             return self::class;
         }
-
-        // Scoop if tens, or contiguous top group is now exactly 4
-        $topAfter = Cards::getTopGroup($this->game->getMiddleCards());
-        $scooped = ($revealedRank === '10')
-            || ($topAfter['rank'] === $revealedRank && $topAfter['count'] === 4);
 
         if ($scooped) {
             $this->game->scoopMiddle($activePlayerId);
@@ -139,9 +143,7 @@ class PlayerTurn extends GameState
             return self::class;
         }
 
-        // Optionally add matching hand / face-up cards of the revealed rank
-        $matchInfo = $this->game->getMatchingAddInfo($activePlayerId);
-        if ($matchInfo['maxAdd'] > 0) {
+        if ($mayAddMatching) {
             return AddMatching::class;
         }
 

@@ -22,12 +22,13 @@ class EndRound extends GameState
 
     public function onEnteringState(): string
     {
-        $gameOver = $this->game->scoreRoundAndAdvance();
+        $this->game->scoreRound();
+        $this->gamestate->setAllPlayersMultiactive();
 
-        if ($gameOver) {
-            return EndScore::class;
+        foreach (array_keys($this->game->loadPlayersBasicInfos()) as $playerId) {
+            $this->game->giveExtraTime((int) $playerId);
         }
 
-        return RoundSetup::class;
+        return RoundEndConfirm::class;
     }
 }

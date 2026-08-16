@@ -133,6 +133,9 @@
     letter-spacing: 0.04em;
     color: #f0d060;
     text-transform: none;
+}
+
+.scoop-flip-announce-in {
     animation: scoop-flip-label-in 0.4s ease-out;
 }
 
@@ -143,10 +146,14 @@
     color: #fff6d0;
 }
 
-.scoop-card-just-flipped {
+.scoop-card-just-flipped-in {
     transition: none;
     outline: 2px solid #f0d060;
-    animation: scoop-flip-glow 2.5s ease-out;
+    animation: scoop-flip-glow 2.5s ease-out forwards;
+}
+
+.scoop-round-end-card.scoop-card-just-flipped {
+    outline: 2px solid #f0d060;
 }
 
 @keyframes scoop-flip-label-in {
@@ -164,14 +171,20 @@
     0% {
         transform: scale(0.94);
         box-shadow: 0 0 0 0 rgba(240, 208, 96, 0.85);
+        outline-color: #f0d060;
     }
     14% {
         transform: scale(1.07);
         box-shadow: 0 0 18px 6px rgba(240, 208, 96, 0.5);
+        outline-color: #f0d060;
+    }
+    70% {
+        outline-color: #f0d060;
     }
     100% {
         transform: scale(1);
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+        outline-color: transparent;
     }
 }
 
@@ -266,8 +279,12 @@
         opacity: 1;
     }
 
-    .scoop-flip-announce,
-    .scoop-card-just-flipped {
+    .scoop-flip-announce-in,
+    .scoop-card-just-flipped-in,
+    .scoop-round-end-kicker span,
+    .scoop-round-end-card,
+    .scoop-round-end-panel,
+    .scoop-round-end-backdrop {
         animation: none;
     }
 }
@@ -622,6 +639,301 @@
     }
 }
 
+#scoop-round-end-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    overflow: hidden;
+    border-radius: 8px;
+    pointer-events: auto;
+}
+
+#scoop-round-end-overlay.scoop-round-end-hidden {
+    display: none;
+}
+
+.scoop-round-end-backdrop {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(201, 162, 39, 0.28) 0%, rgba(0, 0, 0, 0.82) 68%);
+    animation: scoop-round-end-backdrop-in 0.35s ease-out both;
+}
+
+.scoop-round-end-panel {
+    position: relative;
+    z-index: 1;
+    width: min(920px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    background: rgba(8, 28, 22, 0.88);
+    border: 2px solid #c9a227;
+    border-radius: 12px;
+    padding: 20px 22px 18px;
+    box-shadow:
+        0 0 0 1px rgba(255, 246, 208, 0.12),
+        0 18px 40px rgba(0, 0, 0, 0.55);
+    animation: scoop-round-end-panel-in 0.45s cubic-bezier(0.18, 0.9, 0.32, 1.15) both;
+}
+
+.scoop-round-end-kicker {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    font-size: clamp(28px, 6vw, 56px);
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #fff6d0;
+    text-align: center;
+    line-height: 1;
+    text-shadow:
+        0 0 12px rgba(255, 220, 100, 0.95),
+        0 0 36px rgba(201, 162, 39, 0.75),
+        0 4px 0 #8a6a12,
+        0 8px 18px rgba(0, 0, 0, 0.65);
+}
+
+.scoop-round-end-kicker span {
+    display: inline-block;
+    animation: scoop-letter-wiggle 1.1s ease-in-out both;
+}
+
+.scoop-round-end-sub {
+    margin: 8px 0 16px;
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(245, 240, 230, 0.78);
+}
+
+.scoop-round-end-hero {
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(201, 162, 39, 0.45);
+    border-radius: 10px;
+    padding: 12px 14px 14px;
+    margin-bottom: 12px;
+}
+
+.scoop-round-end-hero-head,
+.scoop-round-end-rival-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.scoop-round-end-hero-name,
+.scoop-round-end-rival-name {
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-size: 13px;
+}
+
+.scoop-round-end-hero-points {
+    font-size: clamp(32px, 6vw, 52px);
+    font-weight: 900;
+    color: #f0d060;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    text-shadow: 0 0 12px rgba(240, 208, 96, 0.55);
+    margin-left: auto;
+}
+
+.scoop-round-end-rival-points {
+    font-size: 22px;
+    font-weight: 800;
+    color: #f0d060;
+    font-variant-numeric: tabular-nums;
+    margin-left: auto;
+}
+
+.scoop-round-end-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.scoop-round-end-group-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.72;
+    margin-bottom: 4px;
+}
+
+.scoop-round-end-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.scoop-round-end-card {
+    cursor: default;
+    animation: scoop-reveal-card 0.5s cubic-bezier(0.18, 0.9, 0.32, 1.15) both;
+}
+
+.scoop-round-end-card-sm {
+    width: 48px;
+    height: 66px;
+    border-radius: 4px;
+}
+
+.scoop-card-points {
+    position: absolute;
+    z-index: 2;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(13, 59, 46, 0.9);
+    color: #f0d060;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    padding: 1px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.scoop-round-end-card-sm .scoop-card-points {
+    font-size: 9px;
+    padding: 0 3px;
+    bottom: 2px;
+}
+
+.scoop-round-end-clean {
+    text-align: center;
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fff6d0;
+    text-shadow: 0 0 12px rgba(240, 208, 96, 0.7);
+    padding: 18px 8px;
+}
+
+.scoop-round-end-rivals {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.scoop-round-end-rivals-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
+}
+
+.scoop-round-end-rival {
+    background: rgba(0, 0, 0, 0.22);
+    border-radius: 8px;
+    padding: 8px 10px 10px;
+}
+
+.scoop-round-end-stamp {
+    min-width: 3.5em;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: transparent;
+}
+
+.scoop-round-end-stamp-on {
+    color: #f0d060;
+    text-shadow: 0 0 8px rgba(240, 208, 96, 0.65);
+}
+
+.scoop-round-end-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.scoop-round-end-ready-btn {
+    appearance: none;
+    background: linear-gradient(180deg, #f0d060, #c9a227);
+    color: #1a1408;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 36px;
+    font-size: 16px;
+    font-family: Arial, Helvetica, sans-serif;
+    cursor: pointer;
+    box-shadow: 0 4px 0 #8a6a12, 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+
+.scoop-round-end-ready-btn:hover {
+    filter: brightness(1.06);
+}
+
+.scoop-round-end-ready-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #8a6a12, 0 4px 10px rgba(0, 0, 0, 0.45);
+}
+
+.scoop-round-end-you-ready,
+.scoop-round-end-wait {
+    text-align: center;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(245, 240, 230, 0.8);
+}
+
+.scoop-round-end-you-ready {
+    color: #f0d060;
+    font-weight: 700;
+}
+
+@keyframes scoop-round-end-backdrop-in {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes scoop-round-end-panel-in {
+    0% {
+        opacity: 0;
+        transform: scale(0.86) translateY(20px);
+        filter: blur(6px);
+    }
+    100% {
+        opacity: 1;
+        transform: none;
+        filter: none;
+    }
+}
+
+@keyframes scoop-reveal-card {
+    0% {
+        opacity: 0;
+        transform: translateY(18px) scale(0.82) rotate(-6deg);
+    }
+    100% {
+        opacity: 1;
+        transform: none;
+    }
+}
+
 @media (max-width: 740px) {
     #scoop-table {
         --scoop-card-w: 60px;
@@ -649,5 +961,19 @@
 
     .scoop-banner-text {
         letter-spacing: 0.08em;
+    }
+
+    .scoop-round-end-panel {
+        padding: 14px 12px 14px;
+    }
+
+    .scoop-round-end-card-sm {
+        width: 40px;
+        height: 56px;
+    }
+
+    .scoop-round-end-ready-btn {
+        width: 100%;
+        max-width: 280px;
     }
 }

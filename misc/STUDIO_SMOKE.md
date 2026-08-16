@@ -44,7 +44,10 @@ Run these in BGA Studio after deploying. Start a fresh table for each major scen
 
 - [ ] Round scores: A=1, 2–9 face, J/Q/K=10, 10=20 on remaining cards
 - [ ] `player_score` increases by penalty points (positive totals)
-- [ ] Starter rotates each round
+- [ ] Round-end overlay shows remaining hand, face-up, and revealed face-down cards with a penalty total
+- [ ] Overlay stays until every player clicks Ready (Continue on the final round)
+- [ ] Ready stamps / "waiting for…" update as players confirm
+- [ ] Starter rotates each round after everyone is ready
 - [ ] After N rounds (N = player count) → game end, lowest score wins
 
 ## Zombie
@@ -54,3 +57,4 @@ Run these in BGA Studio after deploying. Start a fresh table for each major scen
 ## Refresh
 
 - [ ] F5 mid-game restores correct public/private card visibility
+- [ ] F5 during the round-end overlay restores remaining cards, scores, and who has readied

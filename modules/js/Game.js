@@ -298,18 +298,92 @@ class AddMatching {
     }
 }
 
+class RoundEndConfirm {
+    constructor(game, bga) {
+        this.game = game;
+        this.bga = bga;
+        this.isActive = false;
+    }
+
+    onEnteringState(args, isCurrentPlayerActive) {
+        this.args = args;
+        this.game.roundEndArgs = args;
+        this.game.roundEndReadyIds = new Set((args?.readyPlayerIds || []).map(Number));
+        this.game.showRoundEndOverlay(args);
+        this.onPlayerActivationChange(args, isCurrentPlayerActive);
+    }
+
+    onLeavingState() {
+        this.isActive = false;
+        this.bga.statusBar.removeActionButtons();
+        this.game.hideRoundEndOverlay();
+    }
+
+    onPlayerActivationChange(args, isCurrentPlayerActive) {
+        const spectator = this.game.isSpectator();
+        this.isActive = !!isCurrentPlayerActive && !spectator;
+        this.args = args || this.args;
+        this.bga.statusBar.removeActionButtons();
+
+        const gameOver = !!this.args?.gameOver;
+        if (spectator) {
+            this.bga.statusBar.setTitle(
+                gameOver
+                    ? _('Players are reviewing remaining cards')
+                    : _('Players must ready up for the next round')
+            );
+        } else if (this.isActive) {
+            this.bga.statusBar.setTitle(
+                gameOver
+                    ? _('${you} — review remaining cards, then continue')
+                    : _('${you} — review remaining cards, then ready up')
+            );
+            this.bga.statusBar.addActionButton(
+                gameOver ? _('Continue') : _('Ready'),
+                () => this.onReady(),
+                { color: 'primary', id: 'scoop-btn-ready' }
+            );
+        } else {
+            this.bga.statusBar.setTitle(
+                gameOver
+                    ? _('Waiting for other players to continue')
+                    : _('Waiting for other players to ready up')
+            );
+        }
+
+        this.game.setRoundEndCanReady(this.isActive);
+    }
+
+    onReady() {
+        if (!this.isActive) {
+            return;
+        }
+        this.isActive = false;
+        this.game.setRoundEndCanReady(false);
+        this.bga.actions.performAction('actReady', {}).catch(() => {
+            this.isActive = true;
+            this.game.setRoundEndCanReady(true);
+        });
+    }
+}
+
 export class Game {
     constructor(bga) {
         this.bga = bga;
         this.playerTurn = new PlayerTurn(this, bga);
         this.addMatching = new AddMatching(this, bga);
+        this.roundEndConfirm = new RoundEndConfirm(this, bga);
         this.bga.states.register('PlayerTurn', this.playerTurn);
         this.bga.states.register('AddMatching', this.addMatching);
+        this.bga.states.register('RoundEndConfirm', this.roundEndConfirm);
 
         this.gamedatas = null;
         this.board = null;
         this.currentPlayerId = null;
         this._flipAnnounce = null;
+        this.roundEndArgs = null;
+        this.roundEndReadyIds = new Set();
+        this.roundEndCanReady = false;
     }
 
     getSelectionController() {
@@ -321,6 +395,10 @@ export class Game {
 
     getCurrentPlayerId() {
         return this.bga.gameui?.player_id ?? this.bga.player_id ?? this.currentPlayerId;
+    }
+
+    isSpectator() {
+        return !!(this.bga.players?.isCurrentPlayerSpectator?.() || this.bga.gameui?.isSpectator);
     }
 
     getActivePlayerId() {
@@ -364,6 +442,7 @@ export class Game {
                     </div>
                     <div id="scoop-hand"></div>
                 </div>
+                <div id="scoop-round-end-overlay" class="scoop-round-end-hidden" aria-hidden="true"></div>
             </div>
         `);
 
@@ -571,9 +650,12 @@ export class Game {
                 ? _('Flipped an ${rank}')
                 : _('Flipped a ${rank}');
             const label = template.replace('${rank}', rankName);
+            if (el.classList.contains('scoop-middle-top-flip') && el.getAttribute('aria-label') === label) {
+                return;
+            }
             el.classList.remove('scoop-middle-top-empty');
             el.classList.add('scoop-middle-top-flip');
-            el.innerHTML = `<span class="scoop-flip-announce">${template
+            el.innerHTML = `<span class="scoop-flip-announce${this._flipAnnounce.animate ? ' scoop-flip-announce-in' : ''}">${template
                 .replace('${rank}', `<span class="scoop-middle-top-rank">${rankName}</span>`)}</span>`;
             el.setAttribute('aria-label', label);
             return;
@@ -597,6 +679,35 @@ export class Game {
         el.setAttribute('aria-label', `${count} ${rankName}`);
     }
 
+    pileMatchesBoard(pile) {
+        const existing = [...pile.querySelectorAll('.scoop-card')].map(el => String(el.dataset.cardId));
+        const next = (this.board.middle || []).map(card => String(card.id));
+        return existing.length === next.length && existing.every((id, i) => id === next[i]);
+    }
+
+    layoutPile(pile) {
+        const cardEl = pile.querySelector('.scoop-card');
+        const cardWidth = cardEl?.offsetWidth || 72;
+        const cardHeight = cardEl?.offsetHeight || 100;
+        const zone = document.getElementById('scoop-middle-zone');
+        const available = Math.max(zone?.clientWidth || 0, cardWidth);
+        const n = this.board.middle.length;
+        const cardsPerRow = Math.max(1, 1 + Math.floor((available - cardWidth) / PILE_PEEK));
+        const rows = Math.ceil(n / cardsPerRow);
+        const cols = Math.min(n, cardsPerRow);
+
+        [...pile.children].forEach((el, index) => {
+            const row = Math.floor(index / cardsPerRow);
+            const col = index % cardsPerRow;
+            el.style.left = `${col * PILE_PEEK}px`;
+            el.style.top = `${row * (cardHeight + PILE_ROW_GAP)}px`;
+            el.style.zIndex = String(index + 1);
+        });
+
+        pile.style.width = `${cardWidth + Math.max(0, cols - 1) * PILE_PEEK}px`;
+        pile.style.height = `${rows * cardHeight + Math.max(0, rows - 1) * PILE_ROW_GAP}px`;
+    }
+
     renderMiddle() {
         if (!this.board || this._renderingMiddle) {
             return;
@@ -608,8 +719,6 @@ export class Game {
 
         this._renderingMiddle = true;
         try {
-            pile.innerHTML = '';
-
             if (this.board.middle.length === 0) {
                 pile.style.width = '72px';
                 pile.style.height = '100px';
@@ -618,35 +727,23 @@ export class Game {
                 return;
             }
 
-            this.board.middle.forEach((card, index) => {
-                const el = this.createCardElement(card, 'middle');
-                el.classList.add('scoop-pile-card');
-                el.style.zIndex = String(index + 1);
-                if (this._flipAnnounce && Number(card.id) === Number(this._flipAnnounce.cardId)) {
-                    el.classList.add('scoop-card-just-flipped');
-                }
-                pile.appendChild(el);
-            });
+            if (!this.pileMatchesBoard(pile)) {
+                pile.innerHTML = '';
+                this.board.middle.forEach((card, index) => {
+                    const el = this.createCardElement(card, 'middle');
+                    el.classList.add('scoop-pile-card');
+                    el.style.zIndex = String(index + 1);
+                    if (this._flipAnnounce && Number(card.id) === Number(this._flipAnnounce.cardId)) {
+                        el.classList.add('scoop-card-just-flipped');
+                        if (this._flipAnnounce.animate) {
+                            el.classList.add('scoop-card-just-flipped-in');
+                        }
+                    }
+                    pile.appendChild(el);
+                });
+            }
 
-            const cardEl = pile.querySelector('.scoop-card');
-            const cardWidth = cardEl?.offsetWidth || 72;
-            const cardHeight = cardEl?.offsetHeight || 100;
-            const zone = document.getElementById('scoop-middle-zone');
-            const available = Math.max(zone?.clientWidth || 0, cardWidth);
-            const n = this.board.middle.length;
-            const cardsPerRow = Math.max(1, 1 + Math.floor((available - cardWidth) / PILE_PEEK));
-            const rows = Math.ceil(n / cardsPerRow);
-            const cols = Math.min(n, cardsPerRow);
-
-            [...pile.children].forEach((el, index) => {
-                const row = Math.floor(index / cardsPerRow);
-                const col = index % cardsPerRow;
-                el.style.left = `${col * PILE_PEEK}px`;
-                el.style.top = `${row * (cardHeight + PILE_ROW_GAP)}px`;
-            });
-
-            pile.style.width = `${cardWidth + Math.max(0, cols - 1) * PILE_PEEK}px`;
-            pile.style.height = `${rows * cardHeight + Math.max(0, rows - 1) * PILE_ROW_GAP}px`;
+            this.layoutPile(pile);
             this.renderMiddleTopLabel();
         } finally {
             this._renderingMiddle = false;
@@ -859,6 +956,337 @@ export class Game {
         return el;
     }
 
+    appendCardPoints(el, card) {
+        const pts = this.cardPoints(card);
+        const badge = document.createElement('span');
+        badge.className = 'scoop-card-points';
+        badge.textContent = `+${pts}`;
+        el.appendChild(badge);
+        return el;
+    }
+
+    roundEndPlayerEntry(playerId, args = this.roundEndArgs) {
+        if (!args?.playerCards) {
+            return null;
+        }
+        return args.playerCards[playerId] || args.playerCards[String(playerId)] || null;
+    }
+
+    roundEndPlayerIds() {
+        const args = this.roundEndArgs;
+        if (!args?.playerCards) {
+            return [];
+        }
+        const me = Number(this.getCurrentPlayerId());
+        const ids = this.orderedPlayerIdsAroundTable().filter(id => this.roundEndPlayerEntry(id, args));
+        const extra = Object.keys(args.playerCards).map(Number).filter(id => !ids.includes(id));
+        const all = [...ids, ...extra];
+        if (this.isSpectator() || !all.includes(me)) {
+            return all;
+        }
+        return [me, ...all.filter(id => id !== me)];
+    }
+
+    showRoundEndOverlay(args) {
+        if (!args?.playerCards) {
+            return;
+        }
+        this.roundEndArgs = args;
+        const overlay = document.getElementById('scoop-round-end-overlay');
+        if (!overlay) {
+            return;
+        }
+
+        const alreadyOpen = !overlay.classList.contains('scoop-round-end-hidden');
+        overlay.classList.remove('scoop-round-end-hidden');
+        overlay.setAttribute('aria-hidden', 'false');
+
+        if (!alreadyOpen || !overlay.querySelector('.scoop-round-end-panel')) {
+            this.buildRoundEndOverlay();
+        } else {
+            this.updateRoundEndOverlayMeta();
+        }
+    }
+
+    hideRoundEndOverlay() {
+        const overlay = document.getElementById('scoop-round-end-overlay');
+        if (overlay) {
+            overlay.classList.add('scoop-round-end-hidden');
+            overlay.setAttribute('aria-hidden', 'true');
+            overlay.innerHTML = '';
+        }
+        this.roundEndArgs = null;
+        this.roundEndReadyIds = new Set();
+        this.roundEndCanReady = false;
+    }
+
+    setRoundEndCanReady(canReady) {
+        this.roundEndCanReady = !!canReady;
+        this.updateRoundEndOverlayMeta();
+    }
+
+    markRoundEndReady(playerId) {
+        this.roundEndReadyIds = this.roundEndReadyIds || new Set();
+        this.roundEndReadyIds.add(Number(playerId));
+        this.updateRoundEndOverlayMeta();
+    }
+
+    buildRoundEndOverlay() {
+        const overlay = document.getElementById('scoop-round-end-overlay');
+        const args = this.roundEndArgs;
+        if (!overlay || !args) {
+            return;
+        }
+
+        overlay.innerHTML = '';
+
+        const backdrop = document.createElement('div');
+        backdrop.className = 'scoop-round-end-backdrop';
+        overlay.appendChild(backdrop);
+
+        const panel = document.createElement('div');
+        panel.className = 'scoop-round-end-panel';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+        panel.setAttribute('aria-labelledby', 'scoop-round-end-title');
+
+        const kicker = document.createElement('div');
+        kicker.className = 'scoop-round-end-kicker';
+        kicker.id = 'scoop-round-end-title';
+        const kickerText = args.gameOver ? _('GAME OVER') : _('ROUND OVER');
+        kickerText.split('').forEach((letter, i) => {
+            const span = document.createElement('span');
+            span.textContent = letter === ' ' ? '\u00a0' : letter;
+            span.style.animationDelay = `${i * 40}ms`;
+            kicker.appendChild(span);
+        });
+        panel.appendChild(kicker);
+
+        const sub = document.createElement('div');
+        sub.className = 'scoop-round-end-sub';
+        sub.textContent = _('Round ${round} of ${total}')
+            .replace('${round}', String(args.round))
+            .replace('${total}', String(args.numRounds));
+        panel.appendChild(sub);
+
+        const playerIds = this.roundEndPlayerIds();
+        const me = Number(this.getCurrentPlayerId());
+        const spectator = this.isSpectator();
+        const heroId = spectator ? null : playerIds.find(id => id === me) ?? null;
+
+        if (heroId != null) {
+            panel.appendChild(this.buildRoundEndHero(heroId, args));
+        }
+
+        const rivals = playerIds.filter(id => id !== heroId);
+        if (rivals.length > 0) {
+            const list = document.createElement('div');
+            list.className = spectator
+                ? 'scoop-round-end-rivals scoop-round-end-rivals-grid'
+                : 'scoop-round-end-rivals';
+            rivals.forEach(playerId => {
+                list.appendChild(this.buildRoundEndRival(playerId, args, { compact: true }));
+            });
+            panel.appendChild(list);
+        }
+
+        const actions = document.createElement('div');
+        actions.className = 'scoop-round-end-actions';
+        actions.id = 'scoop-round-end-actions';
+        panel.appendChild(actions);
+
+        overlay.appendChild(panel);
+        this.updateRoundEndOverlayMeta();
+    }
+
+    buildRoundEndHero(playerId, args) {
+        const entry = this.roundEndPlayerEntry(playerId, args);
+        const wrap = document.createElement('div');
+        wrap.className = 'scoop-round-end-hero';
+
+        const head = document.createElement('div');
+        head.className = 'scoop-round-end-hero-head';
+
+        const name = document.createElement('div');
+        name.className = 'scoop-round-end-hero-name';
+        name.textContent = entry?.wentOut
+            ? _('You went out — no penalty')
+            : _('Your remaining cards');
+        head.appendChild(name);
+
+        const points = document.createElement('div');
+        points.className = 'scoop-round-end-hero-points';
+        points.textContent = `+${entry?.points ?? 0}`;
+        head.appendChild(points);
+
+        const stamp = document.createElement('div');
+        stamp.className = 'scoop-round-end-stamp';
+        stamp.dataset.readyStamp = String(playerId);
+        head.appendChild(stamp);
+        wrap.appendChild(head);
+
+        const groups = document.createElement('div');
+        groups.className = 'scoop-round-end-groups';
+        const cardCount = this.appendRoundEndCardGroups(groups, entry, { size: 'hero' });
+        if (cardCount === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'scoop-round-end-clean';
+            empty.textContent = _('Clean sweep');
+            groups.appendChild(empty);
+        }
+        wrap.appendChild(groups);
+
+        return wrap;
+    }
+
+    buildRoundEndRival(playerId, args, { compact = true } = {}) {
+        const entry = this.roundEndPlayerEntry(playerId, args);
+        const player = this.board?.players?.[playerId] || this.board?.players?.[String(playerId)] || {};
+        const wrap = document.createElement('div');
+        wrap.className = 'scoop-round-end-rival' + (compact ? '' : ' scoop-round-end-rival-full');
+        wrap.dataset.playerId = String(playerId);
+
+        const head = document.createElement('div');
+        head.className = 'scoop-round-end-rival-head';
+
+        const name = document.createElement('div');
+        name.className = 'scoop-round-end-rival-name';
+        if (player.color) {
+            name.style.color = `#${player.color}`;
+        }
+        name.textContent = player.name || String(playerId);
+        head.appendChild(name);
+
+        const points = document.createElement('div');
+        points.className = 'scoop-round-end-rival-points';
+        points.textContent = entry?.wentOut
+            ? _('Out  +0')
+            : `+${entry?.points ?? 0}`;
+        head.appendChild(points);
+
+        const stamp = document.createElement('div');
+        stamp.className = 'scoop-round-end-stamp';
+        stamp.dataset.readyStamp = String(playerId);
+        head.appendChild(stamp);
+        wrap.appendChild(head);
+
+        const groups = document.createElement('div');
+        groups.className = 'scoop-round-end-groups';
+        this.appendRoundEndCardGroups(groups, entry, { size: compact ? 'sm' : 'md' });
+        wrap.appendChild(groups);
+
+        return wrap;
+    }
+
+    appendRoundEndCardGroups(container, entry, { size = 'hero' } = {}) {
+        if (!entry) {
+            return 0;
+        }
+        let index = 0;
+        index = this.appendRoundEndGroup(container, _('Face-down'), entry.tableDown || [], {
+            revealed: true,
+            size,
+            startIndex: index,
+            sort: false,
+        });
+        index = this.appendRoundEndGroup(container, _('Face-up'), entry.tableUp || [], {
+            size,
+            startIndex: index,
+            sort: false,
+        });
+        index = this.appendRoundEndGroup(container, _('Hand'), entry.hand || [], {
+            size,
+            startIndex: index,
+            sort: true,
+        });
+        return index;
+    }
+
+    appendRoundEndGroup(container, label, cards, { revealed = false, size = 'hero', startIndex = 0, sort = false } = {}) {
+        if (!cards || cards.length === 0) {
+            return startIndex;
+        }
+        const group = document.createElement('div');
+        group.className = 'scoop-round-end-group';
+
+        const caption = document.createElement('div');
+        caption.className = 'scoop-round-end-group-label';
+        caption.textContent = label;
+        group.appendChild(caption);
+
+        const row = document.createElement('div');
+        row.className = 'scoop-round-end-cards' + (size === 'sm' ? ' scoop-round-end-cards-sm' : '');
+        const list = sort ? this.sortHand(cards) : cards;
+        list.forEach((card, i) => {
+            const el = this.createCardElement(card, 'reveal');
+            el.classList.add('scoop-round-end-card');
+            if (size === 'sm') {
+                el.classList.add('scoop-round-end-card-sm');
+            }
+            if (revealed) {
+                el.classList.add('scoop-card-just-flipped');
+            }
+            el.style.animationDelay = `${(startIndex + i) * 45}ms`;
+            this.appendCardPoints(el, card);
+            row.appendChild(el);
+        });
+        group.appendChild(row);
+        container.appendChild(group);
+        return startIndex + list.length;
+    }
+
+    updateRoundEndOverlayMeta() {
+        const overlay = document.getElementById('scoop-round-end-overlay');
+        const args = this.roundEndArgs;
+        if (!overlay || !args || overlay.classList.contains('scoop-round-end-hidden')) {
+            return;
+        }
+
+        const readyIds = this.roundEndReadyIds || new Set();
+        overlay.querySelectorAll('[data-ready-stamp]').forEach(el => {
+            const id = Number(el.dataset.readyStamp);
+            el.textContent = readyIds.has(id) ? _('Ready') : '';
+            el.classList.toggle('scoop-round-end-stamp-on', readyIds.has(id));
+        });
+
+        const me = Number(this.getCurrentPlayerId());
+        const actions = overlay.querySelector('#scoop-round-end-actions');
+        if (!actions) {
+            return;
+        }
+        actions.innerHTML = '';
+
+        const waitingIds = this.roundEndPlayerIds().filter(id => !readyIds.has(id));
+        const spectator = this.isSpectator();
+
+        if (this.roundEndCanReady && !spectator) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'scoop-round-end-ready-btn';
+            btn.id = 'scoop-round-end-ready';
+            btn.textContent = args.gameOver ? _('Continue') : _('Ready');
+            btn.addEventListener('click', () => this.roundEndConfirm?.onReady());
+            actions.appendChild(btn);
+        } else if (!spectator && readyIds.has(me)) {
+            const mine = document.createElement('div');
+            mine.className = 'scoop-round-end-you-ready';
+            mine.textContent = _('You are ready');
+            actions.appendChild(mine);
+        }
+
+        if (waitingIds.length > 0 && (readyIds.has(me) || spectator || !this.roundEndCanReady)) {
+            const wait = document.createElement('div');
+            wait.className = 'scoop-round-end-wait';
+            const names = waitingIds.map(id => {
+                const player = this.board?.players?.[id] || this.board?.players?.[String(id)] || {};
+                return player.name || String(id);
+            });
+            wait.textContent = _('Waiting for ${players}')
+                .replace('${players}', names.join(', '));
+            actions.appendChild(wait);
+        }
+    }
+
     updateSelectionUi() {
         document.querySelectorAll('.scoop-card').forEach(el => {
             el.classList.remove('scoop-selected');
@@ -944,7 +1372,14 @@ export class Game {
         this._flipAnnounce = {
             cardId: Number(card.id),
             rank: String(card.type),
+            animate: true,
         };
+    }
+
+    markFlipAnnounceSettled() {
+        if (this._flipAnnounce) {
+            this._flipAnnounce.animate = false;
+        }
     }
 
     clearFlipAnnounce() {
@@ -968,6 +1403,7 @@ export class Game {
     }
 
     async notif_roundStarted(args) {
+        this.hideRoundEndOverlay();
         this.board.round = Number(args.round);
         this.board.inFinalTurns = !!args.inFinalTurns;
         this.board.middle = args.middle || [];
@@ -1035,7 +1471,13 @@ export class Game {
         this.applyCountSnapshots(args);
         this.setFlipAnnounce(args.cards[0]);
         this.renderBoard();
-        await this.pauseForReveal(2500);
+        this.markFlipAnnounceSettled();
+        const mayAddMatching = args.mayAddMatching === true
+            || args.mayAddMatching === 1
+            || args.mayAddMatching === '1';
+        if (!mayAddMatching) {
+            await this.pauseForReveal(2500);
+        }
     }
 
     async notif_scoop(args) {
@@ -1059,15 +1501,30 @@ export class Game {
 
     async notif_roundEnded(args) {
         this.board.round = Number(args.round);
-        Object.entries(args.players).forEach(([id, player]) => {
+        Object.entries(args.players || {}).forEach(([id, player]) => {
             if (this.board.players[id]) {
                 this.board.players[id].score = player.score;
             }
         });
+        this.roundEndReadyIds = new Set();
+        if (args.playerCards) {
+            this.showRoundEndOverlay({
+                round: args.round,
+                numRounds: args.numRounds ?? this.board.numRounds,
+                gameOver: !!args.gameOver,
+                wentOutPlayerId: args.wentOutPlayerId,
+                playerCards: args.playerCards,
+                readyPlayerIds: [],
+            });
+        }
     }
 
     async notif_roundScore(args) {
         // Log-only: round scoring breakdown appears in the game log.
+    }
+
+    async notif_playerReady(args) {
+        this.markRoundEndReady(args.player_id);
     }
 
     showScoopFlash() {

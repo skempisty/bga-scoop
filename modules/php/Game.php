@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace Bga\Games\Scoop;
 
 use Bga\GameFramework\Components\Deck;
+use Bga\Games\Scoop\States\EndScore;
 use Bga\Games\Scoop\States\RoundSetup;
 use Bga\GameFramework\UserException;
 
@@ -286,38 +287,112 @@ class Game extends \Bga\GameFramework\Table
         }
     }
 
-    public function scoreRoundAndAdvance(): bool
+    /**
+     * Remaining hand / board cards for every player, with face-down cards revealed.
+     * Used at round end for scoring and the ready-up overlay.
+     *
+     * @return array{
+     *   round: int,
+     *   numRounds: int,
+     *   gameOver: bool,
+     *   wentOutPlayerId: int,
+     *   playerCards: array<int, array{
+     *     points: int,
+     *     score: int,
+     *     wentOut: bool,
+     *     hand: array,
+     *     tableUp: array,
+     *     tableDown: array
+     *   }>
+     * }
+     */
+    public function getRoundRevealData(): array
     {
-        $roundScores = [];
-        $playerIds = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
+        $playerInfos = $this->loadPlayersBasicInfos();
+        $playerIds = array_map('intval', array_keys($playerInfos));
+        $wentOutId = (int) $this->getGameStateValue('went_out_player_id');
+        $round = (int) $this->getGameStateValue('round_number');
+        $scores = $this->getCollectionFromDb(
+            "SELECT `player_id` AS `id`, `player_score` AS `score` FROM `player`"
+        );
 
+        $players = [];
         foreach ($playerIds as $playerId) {
-            $remaining = array_values(array_merge(
-                $this->cards->getCardsInLocation('hand', $playerId),
-                $this->getPlayerTableCards($playerId),
+            $hand = Cards::sortByRank(array_map(
+                [$this, 'enrichCard'],
+                array_values($this->cards->getCardsInLocation('hand', $playerId))
             ));
-            $points = Cards::scoreCards($remaining);
-            $roundScores[$playerId] = [
-                'points' => $points,
-                'cards' => $remaining,
-            ];
+            $tableUp = [];
+            $tableDown = [];
 
+            for ($slot = 0; $slot < Cards::TABLE_SLOTS; $slot++) {
+                $arg = Cards::slotArg($playerId, $slot);
+                $down = array_values($this->cards->getCardsInLocation('table_down', $arg));
+                $up = array_values($this->cards->getCardsInLocation('table_up', $arg));
+                if (count($down) > 0) {
+                    $tableDown[] = $this->enrichCard($down[0]);
+                }
+                if (count($up) > 0) {
+                    $tableUp[] = $this->enrichCard($up[0]);
+                }
+            }
+
+            $remaining = array_merge($hand, $tableUp, $tableDown);
+            $players[$playerId] = [
+                'points' => Cards::scoreCards($remaining),
+                'score' => (int) ($scores[$playerId]['score'] ?? $scores[(string) $playerId]['score'] ?? 0),
+                'wentOut' => $playerId === $wentOutId,
+                'hand' => $hand,
+                'tableUp' => $tableUp,
+                'tableDown' => $tableDown,
+            ];
+        }
+
+        return [
+            'round' => $round,
+            'numRounds' => count($playerIds),
+            'gameOver' => $round >= count($playerIds),
+            'wentOutPlayerId' => $wentOutId,
+            'playerCards' => $players,
+        ];
+    }
+
+    /**
+     * Apply round penalty scores and notify. Does not deal the next round —
+     * players review remaining cards and ready up first.
+     */
+    public function scoreRound(): array
+    {
+        $reveal = $this->getRoundRevealData();
+
+        foreach ($reveal['playerCards'] as $playerId => $entry) {
+            $points = (int) $entry['points'];
             if ($points > 0) {
-                $this->bga->playerScore->inc($playerId, $points);
-                $this->bga->playerStats->inc('points_scored', $points, $playerId);
+                $this->bga->playerScore->inc((int) $playerId, $points);
+                $this->bga->playerStats->inc('points_scored', $points, (int) $playerId);
             }
         }
 
+        $reveal = $this->getRoundRevealData();
+        $roundScores = [];
+        foreach ($reveal['playerCards'] as $playerId => $entry) {
+            $roundScores[$playerId] = $entry['points'];
+        }
+
         $this->bga->notify->all('roundEnded', clienttranslate('Round ${round} ends'), [
-            'round' => (int) $this->getGameStateValue('round_number'),
-            'roundScores' => array_map(fn(array $entry) => $entry['points'], $roundScores),
+            'round' => $reveal['round'],
+            'numRounds' => $reveal['numRounds'],
+            'gameOver' => $reveal['gameOver'],
+            'wentOutPlayerId' => $reveal['wentOutPlayerId'],
+            'roundScores' => $roundScores,
+            'playerCards' => $reveal['playerCards'],
             'players' => $this->getCollectionFromDb(
                 "SELECT `player_id` AS `id`, `player_score` AS `score` FROM `player`"
             ),
         ]);
 
-        foreach ($roundScores as $playerId => $entry) {
-            $points = $entry['points'];
+        foreach ($reveal['playerCards'] as $playerId => $entry) {
+            $points = (int) $entry['points'];
             if ($points === 0) {
                 $this->bga->notify->all('roundScore', clienttranslate('${player_name} scores 0'), [
                     'player_id' => (int) $playerId,
@@ -326,7 +401,8 @@ class Game extends \Bga\GameFramework\Table
                 continue;
             }
 
-            $labels = array_map(fn(array $card) => Cards::formatCardLabel($card), $entry['cards']);
+            $allCards = array_merge($entry['tableDown'], $entry['tableUp'], $entry['hand']);
+            $labels = array_map(fn(array $card) => Cards::formatCardLabel($card), $allCards);
             $this->bga->notify->all(
                 'roundScore',
                 clienttranslate('${player_name} scores ${points}: ${cards_label}'),
@@ -338,9 +414,21 @@ class Game extends \Bga\GameFramework\Table
             );
         }
 
+        return $reveal;
+    }
+
+    /**
+     * After everyone readies: start the next round, or end the game.
+     *
+     * @return class-string
+     */
+    public function advanceAfterRoundConfirm(): string
+    {
+        $playerIds = array_map('intval', array_keys($this->loadPlayersBasicInfos()));
         $round = (int) $this->getGameStateValue('round_number');
+
         if ($round >= count($playerIds)) {
-            return true;
+            return EndScore::class;
         }
 
         $this->setGameStateValue('round_number', $round + 1);
@@ -349,7 +437,7 @@ class Game extends \Bga\GameFramework\Table
         $nextTable = $this->getNextPlayerTable();
         $this->setGameStateValue('starter_player_id', $nextTable[$starterId]);
 
-        return false;
+        return RoundSetup::class;
     }
 
     public function getMiddleCards(): array
