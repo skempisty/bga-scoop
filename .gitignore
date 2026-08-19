@@ -1,7 +1,7 @@
 # SFTP credentials — never commit
 .vscode/sftp.json
 
-# Dependencies / build
+# Dependencies / build leftovers (client is hand-edited JS/CSS)
 node_modules/
 package-lock.json
 yarn.lock
