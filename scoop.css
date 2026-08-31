@@ -19,6 +19,29 @@
     overflow-x: hidden;
 }
 
+/* Same felt texture, hue-shifted to burgundy. Above the green bg, below cards. */
+#scoop-table::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    z-index: 0;
+    pointer-events: none;
+    background: #0d3b2e url('img/table_felt.png') center / cover no-repeat;
+    filter: hue-rotate(-132deg) saturate(1.35) brightness(0.92);
+    opacity: 0;
+    transition: opacity 0.55s ease;
+}
+
+#scoop-table.scoop-final-turns::before {
+    opacity: 1;
+}
+
+#scoop-table > * {
+    position: relative;
+    z-index: 1;
+}
+
 #scoop-round-banner {
     text-align: center;
     font-size: 18px;
@@ -26,6 +49,36 @@
     text-transform: uppercase;
     margin-bottom: 8px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Champagne gold (brighter than ten stock #e8c547) + dark crimson stroke so it
+   reads on burgundy felt and does not blend into gold tens. */
+.scoop-final-turns-label {
+    color: #fff1b0;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-shadow:
+        0 0 1px #1a0406,
+        1px 0 0 #3a080c,
+        -1px 0 0 #3a080c,
+        0 1px 0 #3a080c,
+        0 -1px 0 #3a080c,
+        0 2px 0 #1a0406,
+        0 0 10px rgba(255, 210, 90, 0.55),
+        0 0 22px rgba(120, 20, 24, 0.7);
+    animation: scoop-final-turns-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes scoop-final-turns-pulse {
+    0%,
+    100% {
+        opacity: 0.88;
+        filter: brightness(1);
+    }
+    50% {
+        opacity: 1;
+        filter: brightness(1.18);
+    }
 }
 
 #scoop-arena {
@@ -96,6 +149,24 @@
     position: relative;
     height: var(--scoop-card-h);
     min-width: var(--scoop-card-w);
+}
+
+/* Same gold type as the round banner, in the player-panel chip language. */
+#scoop-final-turns-badge {
+    display: none;
+    margin-top: 8px;
+    padding: 4px 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(201, 162, 39, 0.55);
+    font-size: 13px;
+    line-height: 1.2;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+#scoop-table.scoop-final-turns #scoop-final-turns-badge {
+    display: inline-block;
 }
 
 #scoop-middle-top {
@@ -300,8 +371,13 @@
     .scoop-round-end-kicker span,
     .scoop-round-end-card,
     .scoop-round-end-panel,
-    .scoop-round-end-backdrop {
+    .scoop-round-end-backdrop,
+    .scoop-final-turns-label {
         animation: none;
+    }
+
+    #scoop-table::before {
+        transition: none;
     }
 }
 

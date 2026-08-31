@@ -441,6 +441,7 @@ export class Game {
                     <div id="scoop-middle-zone">
                         <div id="scoop-middle-label">${_('Pile')}</div>
                         <div id="scoop-middle-pile"></div>
+                        <div id="scoop-final-turns-badge" class="scoop-final-turns-label">${_('Final turns')}</div>
                         <div id="scoop-middle-top" class="scoop-middle-top-empty" aria-live="polite"></div>
                     </div>
                     <div id="scoop-banner-overlay" class="scoop-banner-hidden" aria-hidden="true"></div>
@@ -577,15 +578,24 @@ export class Game {
             return;
         }
 
+        const table = document.getElementById('scoop-table');
+        if (table) {
+            table.classList.toggle('scoop-final-turns', !!this.board.inFinalTurns);
+        }
+
         const banner = document.getElementById('scoop-round-banner');
         if (banner) {
-            let text = _('Round ${round} of ${total}')
+            const roundText = _('Round ${round} of ${total}')
                 .replace('${round}', this.board.round)
                 .replace('${total}', this.board.numRounds);
+            banner.replaceChildren(document.createTextNode(roundText));
             if (this.board.inFinalTurns) {
-                text += ' — ' + _('Final turns');
+                banner.appendChild(document.createTextNode(' — '));
+                const label = document.createElement('span');
+                label.className = 'scoop-final-turns-label';
+                label.textContent = _('Final turns');
+                banner.appendChild(label);
             }
-            banner.textContent = text;
         }
 
         this.renderPlayers();
